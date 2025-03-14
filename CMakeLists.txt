@@ -13,6 +13,9 @@ endif()
 
 project("DeepPotatoGPU" LANGUAGES CXX CUDA)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 # Enable CUDA debugging if debug build
 if (CMAKE_BUILD_TYPE MATCHES Debug)
 	set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
@@ -32,4 +35,3 @@ file(GLOB SOURCES "src/*.cu" "src/*.cpp")
 
 add_executable(DeepPotatoGPU ${SOURCES})
 
-set_property(TARGET DeepPotatoGPU PROPERTY CXX_STANDARD 20)

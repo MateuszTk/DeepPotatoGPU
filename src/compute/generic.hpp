@@ -33,6 +33,8 @@ struct GenericKernel {
 		~GenericKernel() = default;
 
 		friend class Executor;
+		friend class CUDAExecutor;
+		friend class CPUExecutor;
 
 };
 
