@@ -16,19 +16,6 @@ __global__ void run(Func func, Args... args) {
 
 class CUDAExecutor : public Executor {
 
-	private:
-
-		template <typename T>
-		T* extractPointer(Buffer<T>& buffer) {
-			buffer.copyToDevice();
-			return buffer.getDataDevice();
-		}
-
-		template <typename T>
-		T extractPointer(T other) {
-			return other;
-		}
-
 	public:
 
 		CUDAExecutor() {
@@ -47,7 +34,13 @@ class CUDAExecutor : public Executor {
 		void execute(unsigned int size, Args&... args) {
 			Kernel kernel{};
 
-			run << <1, size >> > (kernel, extractPointer(args)...);
+			([&](auto& buffer) {
+				if constexpr (IsBuffer<decltype(buffer)>) {
+					buffer.copyToDevice();
+				}
+			}(args), ...);
+
+			run << <1, size >> > (kernel, args...);
 
 			if (cudaGetLastError() != cudaSuccess) {
 				std::string message = "Failed to launch CUDA kernel: ";

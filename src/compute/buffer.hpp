@@ -18,8 +18,9 @@ class Buffer {
 		T* dataHost = nullptr;
 		T* dataDevice = nullptr;
 		unsigned int count = 0;
+		bool isCopy = false;
 
-		T* getDataDevice() {
+		__host__ T* getDataDevice() {
 			if (dataDevice == nullptr) {
 				if (cudaMalloc(&dataDevice, count * sizeof(T)) != cudaSuccess) {
 					throw std::runtime_error("Failed to allocate device memory");
@@ -29,7 +30,7 @@ class Buffer {
 			return dataDevice;
 		}
 
-		void copyToDevice() {
+		__host__ void copyToDevice() {
 			if (dataDevice == nullptr) {
 				if (cudaMalloc(&dataDevice, count * sizeof(T)) != cudaSuccess) {
 					throw std::runtime_error("Failed to allocate device memory");
@@ -43,11 +44,11 @@ class Buffer {
 			}
 		}
 
-		T* getDataHost() {
+		__host__ T* getDataHost() {
 			return dataHost;
 		}
 
-		void copyToHost() {
+		__host__ void copyToHost() {
 			if (cudaMemcpy(dataHost, dataDevice, count * sizeof(T), cudaMemcpyDeviceToHost) != cudaSuccess) {
 				throw std::runtime_error("Failed to copy data to host");
 			}
@@ -55,37 +56,87 @@ class Buffer {
 
 	public:
 
-		Buffer(unsigned int count) {
+		__host__ Buffer(unsigned int count = 0) {
 			this->count = count;
-			this->dataHost = new T[count];
+
+			if (count > 0) {
+				this->dataHost = new T[count];
+			}
+			else {
+				this->dataHost = nullptr;
+			}
 		}
 
-		~Buffer() {
+		__host__ __device__ Buffer(const Buffer& other) {
+			this->count = other.count;
+			this->dirty = other.dirty;
+			this->dataDevice = other.dataDevice;
+			this->dataHost = other.dataHost;
+			this->isCopy = true;
+		}
+
+		__host__ __device__ ~Buffer() {
+			#ifndef __CUDA_ARCH__
+				if (!isCopy) {
+					if (dataDevice != nullptr) {
+						cudaFree(dataDevice);
+					}
+					if (dataHost != nullptr) {
+						delete[] dataHost;
+					}
+				}
+			#endif
+		}
+
+		__host__ void resize(unsigned int count) {
+			if (dataHost != nullptr) {
+				delete[] dataHost;
+			}
 			if (dataDevice != nullptr) {
 				cudaFree(dataDevice);
 			}
 
-			delete[] dataHost;
+			this->count = count;
+
+			if (count > 0) {
+				this->dataHost = new T[count];
+			}
+			else {
+				this->dataHost = nullptr;
+			}
 		}
 
-		void store(const T* data, unsigned int count) {
+		__host__ void store(const T* data, unsigned int count) {
 			memcpy(this->dataHost, data, count * sizeof(T));
 			dirty = true;
 		}
 
-		void load(T* data, unsigned int count) {
+		__host__ void load(T* data, unsigned int count) {
 			if (dataDevice != nullptr) {
 				copyToHost();
 			}
+
 			memcpy(data, dataHost, count * sizeof(T));
 		}
 
-		const T* getData() {
-			if (dataDevice != nullptr) {
-				copyToHost();
-			}
+		__host__ __device__ T& operator[](unsigned int index) {
+			#ifdef __CUDA_ARCH__
+				return dataDevice[index];
+			#else
+				return dataHost[index];
+			#endif
+		}
 
-			return dataHost;
+		__host__ __device__ const T* data() {
+			#ifdef __CUDA_ARCH__
+				return dataDevice;
+			#else
+				if (dataDevice != nullptr) {
+					copyToHost();
+				}
+
+				return dataHost;
+			#endif
 		}
 
 		friend class Executor;

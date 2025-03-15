@@ -6,10 +6,9 @@
 
 #include "compute/cpu.hpp"
 #include "compute/cuda.hpp"
-
 GENERIC_KERNEL(GenericAddKernel) {
 
-    GENERIC_KERNEL_ENTRY(int* c, const int* a, const int* b) {
+    GENERIC_KERNEL_ENTRY(Buffer<int> c, Buffer<int> a, Buffer<int> b) {
         int i = getThreadIdx().x;
 		c[i] = gfma(b[i], 2, a[i]);
     }
