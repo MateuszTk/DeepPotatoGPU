@@ -4,18 +4,6 @@
 
 class CPUExecutor : public Executor {
 
-	private:
-
-		template <typename T>
-		T* extractPointer(Buffer<T>& buffer) {
-			return buffer.getDataHost();
-		}
-
-		template <typename T>
-		T extractPointer(T other) {
-			return other;
-		}
-
 	public:
 
 		CPUExecutor() = default;
@@ -26,7 +14,7 @@ class CPUExecutor : public Executor {
 			Kernel kernel{};
 
 			for (unsigned int i = 0; i < size; i++) {
-				kernel(extractPointer(args)...);
+				kernel(args...);
 				kernel.threadIdxG.x++;
 			}
 		}
