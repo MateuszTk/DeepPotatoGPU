@@ -9,35 +9,50 @@
 
 #include "math/matrix.hpp"
 
-GENERIC_KERNEL(GenericAddKernel) {
-
-    GENERIC_KERNEL_ENTRY(Matrix2D<float> c, Matrix1D<float> a, Matrix1D<float> b) {
-        int i = getThreadIdx().x;
-		c(0, i) = gfma(b(i), 1, a(i));
-		c(1, i) = gfma(b(i), 2, a(i));
-    }
-
-};
-
 int main() {
 
 	const unsigned int size = 5;
 
-	Matrix1D<float> dev_a({ size });
-	dev_a = { 1, 2, 3, 4, 5 };
-	Matrix1D<float> dev_b({ size });
-	dev_b = { 10, 20, 30, 40, 50 };
-	Matrix2D<float> dev_c({ 2, size });
+	Matrix2D<float> matA({ 4, 3 });
+	matA = {
+		1, 0, 1,
+		2, 1, 1,
+		0, 1, 1,
+		1, 1, 2
+	};
+
+	Matrix2D<float> matB({ 3, 3 });
+	matB = {
+		1, 2, 1,
+		2, 3, 1,
+		4, 2, 2
+	};
+
+	Matrix2D<float> matC({ matA.shape(0), matB.shape(1) });
+	Matrix2D<float> matC2({ matC.shape(0), matC.shape(1) });
+
+	Matrix2D<float> matD({ 4, 3 });
+	matD = {
+		10, 0, 0,
+		0, 10, 0,
+		0, 0, 10,
+		0, 0, 10
+	};
+
+	std::cout << "Matrix A: " << matA << "\n\n";
+	std::cout << "Matrix B: " << matB << "\n\n";
 
 	CUDAExecutor executor;
+	Matrix2D<float>::multiply(executor, matA, matB, matC);
 
-	executor.execute<GenericAddKernel>(size, dev_c, dev_a, dev_b);
+	std::cout << "After multiplication of A and B:\n";
+	std::cout << "Matrix C: " << matC << "\n\n";
 
-	executor.synchronize(dev_c);
+	CPUExecutor cpuExecutor;
+	Matrix2D<float>::add(cpuExecutor, matC, matD, matC2);
 
-	std::cout << "Matrix A: " << dev_a << "\n\n";
-	std::cout << "Matrix B: " << dev_b << "\n\n";
-	std::cout << "Matrix C: " << dev_c << "\n\n";
+	std::cout << "After adding matrix D to C:\n";
+	std::cout << "Matrix C: " << matC2 << "\n\n";
 
     return 0;
 }

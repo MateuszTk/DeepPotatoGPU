@@ -31,7 +31,7 @@ class CUDAExecutor : public Executor {
 		}
 
 		template <typename Kernel, typename... Args>
-		void execute(unsigned int size, Args&... args) {
+		void execute(dim3 threadsPerBlock, Args&... args) {
 			Kernel kernel{};
 
 			([&](auto& buffer) {
@@ -44,7 +44,7 @@ class CUDAExecutor : public Executor {
 				}
 			}(args), ...);
 
-			run << <1, size >> > (kernel, args...);
+			run<<<1, threadsPerBlock>>>(kernel, args...);
 
 			if (cudaGetLastError() != cudaSuccess) {
 				std::string message = "Failed to launch CUDA kernel: ";

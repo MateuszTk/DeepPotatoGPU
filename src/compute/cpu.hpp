@@ -10,12 +10,16 @@ class CPUExecutor : public Executor {
 		virtual ~CPUExecutor() = default;
 
 		template <typename Kernel, typename... Args>
-		void execute(unsigned int size, Args&... args) {
+		void execute(dim3 threadsPerBlock, Args&... args) {
 			Kernel kernel{};
 
-			for (unsigned int i = 0; i < size; i++) {
-				kernel(args...);
-				kernel.threadIdxG.x++;
+			for (unsigned int z = 0; z < threadsPerBlock.z; z++) {
+				for (unsigned int y = 0; y < threadsPerBlock.y; y++) {
+					for (unsigned int x = 0; x < threadsPerBlock.x; x++) {
+						kernel.threadIdxG = { x, y, z };
+						kernel(args...);
+					}
+				}
 			}
 		}
 

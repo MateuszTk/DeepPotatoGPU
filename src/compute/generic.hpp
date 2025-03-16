@@ -8,6 +8,7 @@ struct GenericKernel {
 	protected:
 
 		uint3 threadIdxG;
+		uint3 blockIdx;
 
 	protected:
 
