@@ -7,6 +7,16 @@
 #include <concepts>
 #include <iostream>
 
+template <typename T>
+concept IsBuffer = requires(T a) {
+	{ a.isBuffer() } -> std::same_as<bool>;
+};
+
+template <typename T>
+concept ContainsBuffer = requires(T a) {
+	{ a.getBuffer() } -> IsBuffer;
+};
+
 // TODO: Read-only buffers. Does passing const T* make any difference? Performance?
 
 template <typename T>
@@ -56,6 +66,10 @@ class Buffer {
 
 	public:
 
+		bool isBuffer() {
+			return true;
+		}
+
 		__host__ Buffer(unsigned int count = 0) {
 			this->count = count;
 
@@ -68,11 +82,7 @@ class Buffer {
 		}
 
 		__host__ __device__ Buffer(const Buffer& other) {
-			this->count = other.count;
-			this->dirty = other.dirty;
-			this->dataDevice = other.dataDevice;
-			this->dataHost = other.dataHost;
-			this->isCopy = true;
+			*this = other;
 		}
 
 		__host__ __device__ ~Buffer() {
@@ -86,6 +96,15 @@ class Buffer {
 					}
 				}
 			#endif
+		}
+
+		__host__ __device__ Buffer& operator=(const Buffer& other) {
+			this->count = other.count;
+			this->dirty = other.dirty;
+			this->dataDevice = other.dataDevice;
+			this->dataHost = other.dataHost;
+			this->isCopy = true;
+			return *this;
 		}
 
 		__host__ void resize(unsigned int count) {
@@ -123,6 +142,7 @@ class Buffer {
 			#ifdef __CUDA_ARCH__
 				return dataDevice[index];
 			#else
+				this->dirty = true;
 				return dataHost[index];
 			#endif
 		}
@@ -139,11 +159,12 @@ class Buffer {
 			#endif
 		}
 
+		__host__ __device__ unsigned int size() const {
+			return count;
+		}
+
 		friend class Executor;
 		friend class CPUExecutor;
 		friend class CUDAExecutor;
 
 };
-
-template <typename T>
-concept IsBuffer = requires { typename Buffer<T>; };

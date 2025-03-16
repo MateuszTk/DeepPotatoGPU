@@ -19,7 +19,7 @@ class CPUExecutor : public Executor {
 			}
 		}
 
-		template <typename... Args>	requires (IsBuffer<Args> && ...)
+		template <typename... Args>	requires ((IsBuffer<Args> || ContainsBuffer<Args>) && ...)
 		void synchronize(Args&... readBack) {
 			// Nothing to do
 		}

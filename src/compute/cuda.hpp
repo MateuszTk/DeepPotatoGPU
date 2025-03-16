@@ -38,6 +38,10 @@ class CUDAExecutor : public Executor {
 				if constexpr (IsBuffer<decltype(buffer)>) {
 					buffer.copyToDevice();
 				}
+
+				if constexpr (ContainsBuffer<decltype(buffer)>) {
+					buffer.getBuffer().copyToDevice();
+				}
 			}(args), ...);
 
 			run << <1, size >> > (kernel, args...);
@@ -50,7 +54,7 @@ class CUDAExecutor : public Executor {
 
 		}
 
-		template <typename... Args>	requires (IsBuffer<Args> && ...)
+		template <typename... Args>	requires ((IsBuffer<Args> || ContainsBuffer<Args>) && ...)
 		void synchronize(Args&... readBack) {
 			cudaError_t error = cudaDeviceSynchronize();
 			if (error != cudaSuccess) {
@@ -60,7 +64,13 @@ class CUDAExecutor : public Executor {
 			}
 
 			([&](auto& buffer) {
-				buffer.copyToHost();
+				if constexpr (IsBuffer<decltype(buffer)>) {
+					buffer.copyToHost();
+				}
+
+				if constexpr (ContainsBuffer<decltype(buffer)>) {
+					buffer.getBuffer().copyToHost();
+				}
 			}(readBack), ...);
 
 		}

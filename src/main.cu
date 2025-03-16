@@ -6,43 +6,38 @@
 
 #include "compute/cpu.hpp"
 #include "compute/cuda.hpp"
+
+#include "math/matrix.hpp"
+
 GENERIC_KERNEL(GenericAddKernel) {
 
-    GENERIC_KERNEL_ENTRY(Buffer<int> c, Buffer<int> a, Buffer<int> b) {
+    GENERIC_KERNEL_ENTRY(Matrix2D<float> c, Matrix1D<float> a, Matrix1D<float> b) {
         int i = getThreadIdx().x;
-		c[i] = gfma(b[i], 2, a[i]);
+		c(0, i) = gfma(b(i), 1, a(i));
+		c(1, i) = gfma(b(i), 2, a(i));
     }
 
 };
 
-void add(int* c, const int* a, const int* b, unsigned int size) {
+int main() {
 
-	Buffer<int> dev_a(size);
-	Buffer<int> dev_b(size);
-	Buffer<int> dev_c(size);
+	const unsigned int size = 5;
 
-	dev_a.store(a, size);
-	dev_b.store(b, size);
+	Matrix1D<float> dev_a({ size });
+	dev_a = { 1, 2, 3, 4, 5 };
+	Matrix1D<float> dev_b({ size });
+	dev_b = { 10, 20, 30, 40, 50 };
+	Matrix2D<float> dev_c({ 2, size });
 
 	CUDAExecutor executor;
 
 	executor.execute<GenericAddKernel>(size, dev_c, dev_a, dev_b);
 
 	executor.synchronize(dev_c);
-	dev_c.load(c, size);
-}
 
-int main() {
-
-    const int arraySize = 5;
-    int a[arraySize] = { 1, 2, 3, 4, 5 };
-    int b[arraySize] = { 10, 20, 30, 40, 50 };
-    int c[arraySize] = { 0 };
-
-	add(c, a, b, arraySize);
-
-    printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
-        c[0], c[1], c[2], c[3], c[4]);
+	std::cout << "Matrix A: " << dev_a << "\n\n";
+	std::cout << "Matrix B: " << dev_b << "\n\n";
+	std::cout << "Matrix C: " << dev_c << "\n\n";
 
     return 0;
 }
