@@ -2,6 +2,12 @@
 
 #include "executor.hpp"
 
+#if EXECUTOR_DEBUG_ON
+#define EXECUTOR_CPU_LOG(...) printf("[CPU EXECUTOR] "__VA_ARGS__)
+#else
+#define EXECUTOR_CPU_LOG(...)
+#endif
+
 class CPUExecutor : public Executor {
 
 	public:
@@ -11,6 +17,8 @@ class CPUExecutor : public Executor {
 
 		template <typename Kernel, typename... Args>
 		void execute(dim3 threadsPerBlock, Args&... args) {
+			EXECUTOR_CPU_LOG("Launching CPU kernel with arguments: %s\n", ARGS_TO_STRING(args));
+
 			Kernel kernel{};
 
 			for (unsigned int z = 0; z < threadsPerBlock.z; z++) {
@@ -23,8 +31,7 @@ class CPUExecutor : public Executor {
 			}
 		}
 
-		template <typename... Args>	requires ((IsBuffer<Args> || ContainsBuffer<Args>) && ...)
-		void synchronize(Args&... readBack) {
+		void synchronize() override {
 			// Nothing to do
 		}
 

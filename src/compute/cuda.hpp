@@ -8,6 +8,13 @@
 #include <vector>
 
 #include "executor.hpp"
+#include "buffer.hpp"
+
+#if EXECUTOR_DEBUG_ON
+#define EXECUTOR_CUDA_LOG(...) printf("[CUDA EXECUTOR] "__VA_ARGS__)
+#else
+#define EXECUTOR_CUDA_LOG(...)
+#endif
 
 template <typename Func, typename... Args>
 __global__ void run(Func func, Args... args) {
@@ -36,13 +43,15 @@ class CUDAExecutor : public Executor {
 
 			([&](auto& buffer) {
 				if constexpr (IsBuffer<decltype(buffer)>) {
-					buffer.copyToDevice();
+					buffer.transitionLocation(Location::Device);
 				}
 
 				if constexpr (ContainsBuffer<decltype(buffer)>) {
-					buffer.getBuffer().copyToDevice();
+					buffer.getBuffer().transitionLocation(Location::Device);
 				}
 			}(args), ...);
+
+			EXECUTOR_CUDA_LOG("Launching CUDA kernel with arguments: %s\n", ARGS_TO_STRING(args));
 
 			run<<<1, threadsPerBlock>>>(kernel, args...);
 
@@ -54,25 +63,13 @@ class CUDAExecutor : public Executor {
 
 		}
 
-		template <typename... Args>	requires ((IsBuffer<Args> || ContainsBuffer<Args>) && ...)
-		void synchronize(Args&... readBack) {
+		void synchronize() override {
 			cudaError_t error = cudaDeviceSynchronize();
 			if (error != cudaSuccess) {
 				std::string message = "Failed to synchronize CUDA device: ";
 				message += cudaGetErrorString(error);
 				throw std::runtime_error(message);
 			}
-
-			([&](auto& buffer) {
-				if constexpr (IsBuffer<decltype(buffer)>) {
-					buffer.copyToHost();
-				}
-
-				if constexpr (ContainsBuffer<decltype(buffer)>) {
-					buffer.getBuffer().copyToHost();
-				}
-			}(readBack), ...);
-
 		}
 
 };

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
+#include "external.hpp"
 
 struct GenericKernel {
 

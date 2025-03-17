@@ -1,11 +1,12 @@
 #pragma once
 
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
+#include "external.hpp"
 
-#include <stdexcept>
-#include <concepts>
-#include <iostream>
+#if BUFFER_DEBUG_ON
+#define BUFFER_LOG(...) printf("[BUFFER] "__VA_ARGS__)
+#else
+#define BUFFER_LOG(...)
+#endif
 
 template <typename T>
 concept IsBuffer = requires(T a) {
@@ -17,7 +18,10 @@ concept ContainsBuffer = requires(T a) {
 	{ a.getBuffer() } -> IsBuffer;
 };
 
-// TODO: Read-only buffers. Does passing const T* make any difference? Performance?
+enum class Location {
+	Host,
+	Device
+};
 
 template <typename T>
 class Buffer {
@@ -25,50 +29,52 @@ class Buffer {
 	private:
 
 		bool dirty = false;
+		Location location = Location::Host;
 		T* dataHost = nullptr;
 		T* dataDevice = nullptr;
 		unsigned int count = 0;
 		bool isCopy = false;
 
-		__host__ T* getDataDevice() {
-			if (dataDevice == nullptr) {
-				if (cudaMalloc(&dataDevice, count * sizeof(T)) != cudaSuccess) {
-					throw std::runtime_error("Failed to allocate device memory");
-				}
-			}
-
-			return dataDevice;
-		}
-
 		__host__ void copyToDevice() {
 			if (dataDevice == nullptr) {
+				BUFFER_LOG("Allocating device memory (%d bytes)\n", count * sizeof(T));
+
 				if (cudaMalloc(&dataDevice, count * sizeof(T)) != cudaSuccess) {
 					throw std::runtime_error("Failed to allocate device memory");
 				}
 			}
 
 			if (dirty) {
+				BUFFER_LOG("Copying data to device (%d bytes)\n", count * sizeof(T));
+
 				if (cudaMemcpy(dataDevice, dataHost, count * sizeof(T), cudaMemcpyHostToDevice) != cudaSuccess) {
 					throw std::runtime_error("Failed to copy data to device");
 				}
 			}
 		}
 
-		__host__ T* getDataHost() {
-			return dataHost;
+		__host__ void copyToHost() {
+			if (dataDevice != nullptr) {
+				BUFFER_LOG("Copying data to host (%d bytes)\n", count * sizeof(T));
+
+				if (cudaMemcpy(dataHost, dataDevice, count * sizeof(T), cudaMemcpyDeviceToHost) != cudaSuccess) {
+					throw std::runtime_error("Failed to copy data to host");
+				}
+			}
 		}
 
-		__host__ void copyToHost() {
-			if (cudaMemcpy(dataHost, dataDevice, count * sizeof(T), cudaMemcpyDeviceToHost) != cudaSuccess) {
-				throw std::runtime_error("Failed to copy data to host");
+		__host__ void transitionLocation(Location dstLocation) {
+			if (location == Location::Host && dstLocation == Location::Device) {
+				copyToDevice();
+				location = Location::Device;
+			}
+			else if (location == Location::Device && dstLocation == Location::Host) {
+				copyToHost();
+				location = Location::Host;
 			}
 		}
 
 	public:
-
-		bool isBuffer() {
-			return true;
-		}
 
 		__host__ Buffer(unsigned int count = 0) {
 			this->count = count;
@@ -103,7 +109,9 @@ class Buffer {
 			this->dirty = other.dirty;
 			this->dataDevice = other.dataDevice;
 			this->dataHost = other.dataHost;
+			this->location = other.location;
 			this->isCopy = true;
+
 			return *this;
 		}
 
@@ -126,15 +134,13 @@ class Buffer {
 		}
 
 		__host__ void store(const T* data, unsigned int count) {
+			transitionLocation(Location::Host);
 			memcpy(this->dataHost, data, count * sizeof(T));
 			dirty = true;
 		}
 
 		__host__ void load(T* data, unsigned int count) {
-			if (dataDevice != nullptr) {
-				copyToHost();
-			}
-
+			transitionLocation(Location::Host);
 			memcpy(data, dataHost, count * sizeof(T));
 		}
 
@@ -142,6 +148,7 @@ class Buffer {
 			#ifdef __CUDA_ARCH__
 				return dataDevice[index];
 			#else
+				transitionLocation(Location::Host);
 				this->dirty = true;
 				return dataHost[index];
 			#endif
@@ -151,16 +158,17 @@ class Buffer {
 			#ifdef __CUDA_ARCH__
 				return dataDevice;
 			#else
-				if (dataDevice != nullptr) {
-					copyToHost();
-				}
-
+				transitionLocation(Location::Host);
 				return dataHost;
 			#endif
 		}
 
 		__host__ __device__ unsigned int size() const {
 			return count;
+		}
+
+		bool isBuffer() {
+			return true;
 		}
 
 		friend class Executor;

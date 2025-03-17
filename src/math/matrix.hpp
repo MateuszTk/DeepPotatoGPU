@@ -1,11 +1,6 @@
 #pragma once
 
-#include <initializer_list>
-#include <array>
-#include <functional>
-#include <iostream>
-#include <memory>
-#include <stdexcept>
+#include "external.hpp"
 
 #include "compute/buffer.hpp"
 #include "compute/generic.hpp"
@@ -63,9 +58,7 @@ class Matrix {
 			return index;
 		}
 
-	public:
-
-		
+	public:		
 
 		/**
 		* Creation, destruction, copying
@@ -157,7 +150,6 @@ class Matrix {
 			}
 
 			executor.template execute<MatrixMultiplyKernel>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
-			executor.synchronize(matC);
 		}
 
 		GENERIC_KERNEL(MatrixAddKernel) {
@@ -176,7 +168,6 @@ class Matrix {
 			}
 
 			executor.template execute<MatrixAddKernel>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
-			executor.synchronize(matC);
 		}
 
 		/**

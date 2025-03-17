@@ -1,8 +1,5 @@
 ﻿
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-
-#include <stdio.h>
+#include "external.hpp"
 
 #include "compute/cpu.hpp"
 #include "compute/cuda.hpp"
