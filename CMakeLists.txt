@@ -19,6 +19,7 @@ endif()
 
 if (ENABLE_CUDA)
 	project("DeepPotatoGPU" LANGUAGES CXX CUDA)
+	add_compile_definitions(CUDA_AVAILIABLE)
 else()
 	project("DeepPotatoGPU" LANGUAGES CXX)
 endif()

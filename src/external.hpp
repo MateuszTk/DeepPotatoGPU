@@ -2,8 +2,8 @@
 
 // CUDA
 #ifdef CUDA_AVAILIABLE
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
+    #include "cuda_runtime.h"
+    #include "device_launch_parameters.h"
 #else
     struct uint3 {
         unsigned int x, y, z;
