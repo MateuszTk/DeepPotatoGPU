@@ -11,27 +11,46 @@ if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
 	set(CMAKE_CUDA_ARCHITECTURES 52)
 endif()
 
-project("DeepPotatoGPU" LANGUAGES CXX CUDA)
+if(NOT DEFINED CMAKE_CUDA_COMPILER OR NOT EXISTS ${CMAKE_CUDA_COMPILER})
+    set(ENABLE_CUDA FALSE)
+else()
+    set(ENABLE_CUDA TRUE)
+endif()
+
+if (ENABLE_CUDA)
+	project("DeepPotatoGPU" LANGUAGES CXX CUDA)
+else()
+	project("DeepPotatoGPU" LANGUAGES CXX)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Enable CUDA debugging if debug build
-if (CMAKE_BUILD_TYPE MATCHES Debug)
-	set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
+if (ENABLE_CUDA)
+	# Enable CUDA debugging if debug build
+	if (CMAKE_BUILD_TYPE MATCHES Debug)
+		set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
+	endif()
 endif()
 
 include(CTest)
 enable_testing()
 
-# Set include directories for Visual Studio IntelliSense
-# Not required for compilation, as CMake already supports CUDA
-if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-	find_package(CUDA REQUIRED)
-	include_directories(${CUDA_INCLUDE_DIRS})
+if (ENABLE_CUDA)
+	# Set include directories for Visual Studio IntelliSense
+	# Not required for compilation, as CMake already supports CUDA
+	if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+		find_package(CUDA REQUIRED)
+		include_directories(${CUDA_INCLUDE_DIRS})
+	endif()
 endif()
 
 file(GLOB SOURCES "src/*.cu" "src/*.cpp")
+include_directories("src/")
+
+if (NOT ENABLE_CUDA)
+	set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CXX)
+endif()
 
 add_executable(DeepPotatoGPU ${SOURCES})
 

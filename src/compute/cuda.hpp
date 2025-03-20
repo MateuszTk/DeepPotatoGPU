@@ -1,14 +1,11 @@
 #pragma once
 
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-
-#include <stdexcept>
-#include <string>
-#include <vector>
+#include "external.hpp"
 
 #include "executor.hpp"
 #include "buffer.hpp"
+
+#ifdef CUDA_AVAILIABLE
 
 #if EXECUTOR_DEBUG_ON
 #define EXECUTOR_CUDA_LOG(...) printf("[CUDA EXECUTOR] "__VA_ARGS__)
@@ -73,3 +70,5 @@ class CUDAExecutor : public Executor {
 		}
 
 };
+
+#endif

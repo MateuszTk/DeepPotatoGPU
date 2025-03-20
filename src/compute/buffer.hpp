@@ -3,7 +3,7 @@
 #include "external.hpp"
 
 #if BUFFER_DEBUG_ON
-#define BUFFER_LOG(...) printf("[BUFFER] "__VA_ARGS__)
+#define BUFFER_LOG(format, ...) printf("[BUFFER] " format, __VA_ARGS__)
 #else
 #define BUFFER_LOG(...)
 #endif
@@ -36,42 +36,48 @@ class Buffer {
 		bool isCopy = false;
 
 		__host__ void copyToDevice() {
-			if (dataDevice == nullptr) {
-				BUFFER_LOG("Allocating device memory (%d bytes)\n", count * sizeof(T));
+			#ifdef CUDA_AVAILIABLE
+				if (dataDevice == nullptr) {
+					BUFFER_LOG("Allocating device memory (%d bytes)\n", count * sizeof(T));
 
-				if (cudaMalloc(&dataDevice, count * sizeof(T)) != cudaSuccess) {
-					throw std::runtime_error("Failed to allocate device memory");
+					if (cudaMalloc(&dataDevice, count * sizeof(T)) != cudaSuccess) {
+						throw std::runtime_error("Failed to allocate device memory");
+					}
 				}
-			}
 
-			if (dirty) {
-				BUFFER_LOG("Copying data to device (%d bytes)\n", count * sizeof(T));
+				if (dirty) {
+					BUFFER_LOG("Copying data to device (%d bytes)\n", count * sizeof(T));
 
-				if (cudaMemcpy(dataDevice, dataHost, count * sizeof(T), cudaMemcpyHostToDevice) != cudaSuccess) {
-					throw std::runtime_error("Failed to copy data to device");
+					if (cudaMemcpy(dataDevice, dataHost, count * sizeof(T), cudaMemcpyHostToDevice) != cudaSuccess) {
+						throw std::runtime_error("Failed to copy data to device");
+					}
 				}
-			}
+			#endif
 		}
 
 		__host__ void copyToHost() {
-			if (dataDevice != nullptr) {
-				BUFFER_LOG("Copying data to host (%d bytes)\n", count * sizeof(T));
+			#ifdef CUDA_AVAILIABLE
+				if (dataDevice != nullptr) {
+					BUFFER_LOG("Copying data to host (%d bytes)\n", count * sizeof(T));
 
-				if (cudaMemcpy(dataHost, dataDevice, count * sizeof(T), cudaMemcpyDeviceToHost) != cudaSuccess) {
-					throw std::runtime_error("Failed to copy data to host");
+					if (cudaMemcpy(dataHost, dataDevice, count * sizeof(T), cudaMemcpyDeviceToHost) != cudaSuccess) {
+						throw std::runtime_error("Failed to copy data to host");
+					}
 				}
-			}
+			#endif
 		}
 
 		__host__ void transitionLocation(Location dstLocation) {
-			if (location == Location::Host && dstLocation == Location::Device) {
-				copyToDevice();
-				location = Location::Device;
-			}
-			else if (location == Location::Device && dstLocation == Location::Host) {
-				copyToHost();
-				location = Location::Host;
-			}
+			#ifdef CUDA_AVAILIABLE
+				if (location == Location::Host && dstLocation == Location::Device) {
+					copyToDevice();
+					location = Location::Device;
+				}
+				else if (location == Location::Device && dstLocation == Location::Host) {
+					copyToHost();
+					location = Location::Host;
+				}
+			#endif
 		}
 
 	public:
@@ -94,9 +100,11 @@ class Buffer {
 		__host__ __device__ ~Buffer() {
 			#ifndef __CUDA_ARCH__
 				if (!isCopy) {
-					if (dataDevice != nullptr) {
-						cudaFree(dataDevice);
-					}
+					#ifdef CUDA_AVAILIABLE
+						if (dataDevice != nullptr) {
+							cudaFree(dataDevice);
+						}
+					#endif
 					if (dataHost != nullptr) {
 						delete[] dataHost;
 					}
@@ -119,9 +127,11 @@ class Buffer {
 			if (dataHost != nullptr) {
 				delete[] dataHost;
 			}
-			if (dataDevice != nullptr) {
-				cudaFree(dataDevice);
-			}
+			#ifdef CUDA_AVAILIABLE
+				if (dataDevice != nullptr) {
+					cudaFree(dataDevice);
+				}
+			#endif
 
 			this->count = count;
 

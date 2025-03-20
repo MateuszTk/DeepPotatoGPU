@@ -3,7 +3,7 @@
 #include "executor.hpp"
 
 #if EXECUTOR_DEBUG_ON
-#define EXECUTOR_CPU_LOG(...) printf("[CPU EXECUTOR] "__VA_ARGS__)
+#define EXECUTOR_CPU_LOG(format, ...) printf("[CPU EXECUTOR] " format, __VA_ARGS__)
 #else
 #define EXECUTOR_CPU_LOG(...)
 #endif
