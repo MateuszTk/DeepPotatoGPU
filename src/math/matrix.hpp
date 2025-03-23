@@ -70,7 +70,7 @@ class Matrix {
 			}
 		}
 
-		__host__ Matrix(const std::array<unsigned int, nDim>& dimensions) : buffer() {
+		__host__ Matrix(const std::array<unsigned int, nDim>& dimensions, const std::initializer_list<T>& values = {}) : buffer() {
 			int size = 1;
 
 			for (unsigned int i = 0; i < nDim; i++) {
@@ -79,6 +79,10 @@ class Matrix {
 			}
 
 			this->buffer.resize(size);
+
+			if (values.size() > 0) {
+				*this = values;
+			}
 		}
 
 		__host__ __device__ Matrix(const Matrix& other) : buffer(other.buffer) {
@@ -103,6 +107,23 @@ class Matrix {
 			buffer.store(values.begin(), values.size());
 
 			return *this;
+		}
+
+		template <unsigned int nDimOther>
+		__host__ Matrix<T, nDimOther> reshape(const std::array<unsigned int, nDimOther>& dimensions) {
+			Matrix<T, nDimOther> result(dimensions);
+
+			if (result.buffer.size() != buffer.size()) {
+				throw std::invalid_argument("Invalid number of elements");
+			}
+
+			result.buffer = buffer;
+
+			for (unsigned int i = 0; i < nDimOther; i++) {
+				result.dimensions[i] = dimensions[i];
+			}
+
+			return result;
 		}
 
 		/**
@@ -173,6 +194,12 @@ class Matrix {
 		/**
 		* Other
 		*/
+
+		__host__ void fill(const T& value) {
+			for (unsigned int i = 0; i < buffer.size(); i++) {
+				buffer[i] = value;
+			}
+		}
 
 		__host__ friend std::ostream& operator<<(std::ostream& os, Matrix& matrix) {
 			// print dimensions
