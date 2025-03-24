@@ -5,6 +5,20 @@
 
 class Network {
 
+	public:
+
+		GENERIC_KERNEL(MatrixMapKernel) {
+			GENERIC_KERNEL_ENTRY(Matrix2D<float> matA, Activation activation) {
+				uint3 index = getThreadIdx();
+				if (activation == Activation::Sigmoid) {
+					matA(index.y, index.x) = sigmoid(matA(index.y, index.x));
+				}
+				else {
+					matA(index.y, index.x) = matA(index.y, index.x);
+				}
+			}
+		};
+
 	private:
 
 		std::vector<Layer> layers;
@@ -15,6 +29,15 @@ class Network {
 					matrix(y, x) = (float)rand() / RAND_MAX;
 				}
 			}
+		}
+
+		__host__ __device__ static float sigmoid(float x) {
+			return 1.0f / (1.0f + exp(-x));
+		}
+
+		template <typename Exe>
+		__host__ static void applyActivation(Exe& executor, Matrix2D<float>& matA, Activation activation) {
+			executor.template execute<MatrixMapKernel>({ matA.shape(1), matA.shape(0) }, matA, activation);
 		}
 
 	public:
@@ -47,7 +70,8 @@ class Network {
 				Layer& layer = layers[i];
 
 				Matrix2D<float>::multiply(executor, layer.weights, currentInput, layer.outputs);
-				Matrix1D<float>::add(executor, layer.outputs, layer.biases, layer.outputs);
+				Matrix2D<float>::add(executor, layer.outputs, layer.biases, layer.outputs);
+				applyActivation(executor, layer.outputs, layer.type.getActivation());
 
 				currentInput = layer.outputs;
 			}
