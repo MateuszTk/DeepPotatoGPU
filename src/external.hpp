@@ -32,7 +32,8 @@
 #include <concepts>
 #include <stdio.h>
 #include <string.h>
+#include <chrono>
 
 // Options
 #define BUFFER_DEBUG_ON 1
-#define EXECUTOR_DEBUG_ON 1
+#define EXECUTOR_DEBUG_ON 0

@@ -147,30 +147,64 @@ class Matrix {
 		* Math operations
 		*/
 
+		template <bool transposeA = false>
 		GENERIC_KERNEL(MatrixMultiplyKernel) {
 			GENERIC_KERNEL_ENTRY(Matrix2D<T> matA, Matrix2D<T> matB, Matrix2D<T> matC) {
 				uint3 index = getThreadIdx();
 
-				unsigned int aCols = matA.shape(1);
+				if constexpr (transposeA) {
+					unsigned int aRows = matA.shape(0);
 
-				T sum = 0;
+					T sum = 0;
 
-				for (unsigned int i = 0; i < aCols; i++) {
-					sum += matA(index.y, i) * matB(i, index.x);
+					for (unsigned int i = 0; i < aRows; i++) {
+						sum += matA(i, index.y) * matB(i, index.x);
+					}
+
+					matC(index.y, index.x) = sum;
 				}
+				else {
+					unsigned int aCols = matA.shape(1);
 
-				matC(index.y, index.x) = sum;
+					T sum = 0;
+
+					for (unsigned int i = 0; i < aCols; i++) {
+						sum += matA(index.y, i) * matB(i, index.x);
+					}
+
+					matC(index.y, index.x) = sum;
+				}
 			}
 		};
 
 		template <typename Exe>
-		__host__ static void multiply(Exe& executor, Matrix2D<T>& matA, Matrix2D<T>& matB, Matrix2D<T>& matC) {
+		__host__ static void multiply(Exe& executor, Matrix2D<T>& matA, Matrix2D<T>& matB, Matrix2D<T>& matC, bool transposeA = false) {
+			if (transposeA) {
+				if (matA.shape(0) != matB.shape(0) || matA.shape(1) != matC.shape(0) || matB.shape(1) != matC.shape(1)) {
+					throw std::invalid_argument("Matrix dimensions do not match");
+				}
 
-			if (matA.shape(1) != matB.shape(0) || matA.shape(0) != matC.shape(0) || matB.shape(1) != matC.shape(1)) {
-				throw std::invalid_argument("Matrix dimensions do not match");
+				executor.template execute<MatrixMultiplyKernel<true>>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
 			}
+			else {
+				if (matA.shape(1) != matB.shape(0) || matA.shape(0) != matC.shape(0) || matB.shape(1) != matC.shape(1)) {
+					throw std::invalid_argument("Matrix dimensions do not match");
+				}
 
-			executor.template execute<MatrixMultiplyKernel>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
+				executor.template execute<MatrixMultiplyKernel<false>>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
+			}
+		}
+
+		GENERIC_KERNEL(MatrixScalarMultiplyKernel) {
+			GENERIC_KERNEL_ENTRY(Matrix2D<T> matA, T scalar, Matrix2D<T> matB) {
+				uint3 index = getThreadIdx();
+				matB(index.y, index.x) = matA(index.y, index.x) * scalar;
+			}
+		};
+
+		template <typename Exe>
+		__host__ static void multiply(Exe& executor, Matrix2D<T>& matA, T scalar, Matrix2D<T>& matB) {
+			executor.template execute<MatrixScalarMultiplyKernel>({ matB.shape(1), matB.shape(0) }, matA, scalar, matB);
 		}
 
 		GENERIC_KERNEL(MatrixAddKernel) {
@@ -191,6 +225,21 @@ class Matrix {
 			executor.template execute<MatrixAddKernel>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
 		}
 
+		GENERIC_KERNEL(MatrixSubtractKernel) {
+			GENERIC_KERNEL_ENTRY(Matrix2D<T> matA, Matrix2D<T> matB, Matrix2D<T> matC) {
+				uint3 index = getThreadIdx();
+				matC(index.y, index.x) = matA(index.y, index.x) - matB(index.y, index.x);
+			}
+		};
+
+		template <typename Exe>
+		__host__ static void subtract(Exe& executor, Matrix2D<T>& matA, Matrix2D<T>& matB, Matrix2D<T>& matC) {
+			if (matA.shape(0) != matB.shape(0) || matA.shape(1) != matB.shape(1) || matA.shape(0) != matC.shape(0) || matA.shape(1) != matC.shape(1)) {
+				throw std::invalid_argument("Matrix dimensions do not match");
+			}
+
+			executor.template execute<MatrixSubtractKernel>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
+		}
 
 		/**
 		* Other

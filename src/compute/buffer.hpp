@@ -29,7 +29,7 @@ class Buffer {
 	private:
 
 		bool dirty = false;
-		Location location = Location::Host;
+		Location* location = nullptr;
 		T* dataHost = nullptr;
 		T* dataDevice = nullptr;
 		unsigned int count = 0;
@@ -69,13 +69,13 @@ class Buffer {
 
 		__host__ void transitionLocation(Location dstLocation) {
 			#ifdef CUDA_AVAILIABLE
-				if (location == Location::Host && dstLocation == Location::Device) {
+				if (*location == Location::Host && dstLocation == Location::Device) {
 					copyToDevice();
-					location = Location::Device;
+					*location = Location::Device;
 				}
-				else if (location == Location::Device && dstLocation == Location::Host) {
+				else if (*location == Location::Device && dstLocation == Location::Host) {
 					copyToHost();
-					location = Location::Host;
+					*location = Location::Host;
 				}
 			#endif
 		}
@@ -83,6 +83,8 @@ class Buffer {
 	public:
 
 		__host__ Buffer(unsigned int count = 0) {
+			this->location = new Location(Location::Host);
+
 			this->count = count;
 
 			if (count > 0) {
@@ -108,6 +110,8 @@ class Buffer {
 					if (dataHost != nullptr) {
 						delete[] dataHost;
 					}
+
+					delete location;
 				}
 			#endif
 		}
@@ -124,6 +128,10 @@ class Buffer {
 		}
 
 		__host__ void resize(unsigned int count) {
+			if (isCopy) {
+				throw std::runtime_error("Cannot resize a copied buffer");
+			}
+
 			if (dataHost != nullptr) {
 				delete[] dataHost;
 			}
