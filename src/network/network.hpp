@@ -5,61 +5,25 @@
 
 class Network {
 
-	public:
+	private:
 
-		GENERIC_KERNEL(MatrixDeriverationKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix2D<float> inputs, Matrix2D<float> errors, Activation activation) {
-				uint3 index = getThreadIdx();
-				if (activation == Activation::Sigmoid) {
-					errors(index.y, index.x) *= sigmoidDerivative(inputs(index.y, index.x));
-				}
-				else {
-					errors(index.y, index.x) *= 1.0f;
-				}
+		__host__ __device__ static float sigmoid(float x) {
+			return 1.0f / (1.0f + exp(-x));
+		}
+
+		__host__ __device__ static float sigmoidDerivative(float x) {
+			float s = sigmoid(x);
+			return s * (1.0f - s);
+		}
+
+		__host__ __device__ static float deriverate(float input, Activation activation) {
+			if (activation == Activation::Sigmoid) {
+				return sigmoidDerivative(input);
 			}
-		};
-
-		GENERIC_KERNEL(UpdateWeightsKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> errors, Matrix2D<float> prevOutputs, float learningRate) {
-				uint3 index = getThreadIdx();
-				weights(index.y, index.x) += learningRate * errors(index.y, 0) * prevOutputs(index.x, 0);
+			else {
+				return 1.0f;
 			}
-		};
-
-		GENERIC_KERNEL(UpdateBiasesKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix2D<float> biases, Matrix2D<float> errors, float learningRate) {
-				uint3 index = getThreadIdx();
-				biases(index.y, 0) += learningRate * errors(index.y, 0);
-			}
-		};
-
-		GENERIC_KERNEL(ForwardLayerKernel) {
-
-			__host__ __device__ float activate(float input, Activation activation) {
-				uint3 index = getThreadIdx();
-				if (activation == Activation::Sigmoid) {
-					return sigmoid(input);
-				}
-				else {
-					return input;
-				}
-			}
-
-			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> biases, Matrix2D<float> inputs, Matrix2D<float> currentInputs, Matrix2D<float> outputs, Activation activation) {
-				uint3 index = getThreadIdx();
-
-				float output = 0.0f;
-
-				for (unsigned int i = 0; i < weights.shape(1); i++) {
-					output += weights(index.y, i) * currentInputs(i, index.x);
-				}
-
-				output += biases(index.y, 0);
-
-				inputs(index.y, index.x) = output;
-				outputs(index.y, index.x) = activate(output, activation);
-			}
-		};
+		}
 
 	private:
 
@@ -71,20 +35,6 @@ class Network {
 					matrix(y, x) = (float)rand() / RAND_MAX;
 				}
 			}
-		}
-
-		__host__ __device__ static float sigmoid(float x) {
-			return 1.0f / (1.0f + exp(-x));
-		}
-
-		__host__ __device__ static float sigmoidDerivative(float x) {
-			float s = sigmoid(x);
-			return s * (1.0f - s);
-		}
-
-		template <typename Exe>
-		__host__ static void applyDerivation(Exe& executor, Matrix2D<float>& inputs, Matrix2D<float>& errors, Activation activation) {
-			executor.template execute<MatrixDeriverationKernel>({ inputs.shape(1), inputs.shape(0) }, inputs, errors, activation);
 		}
 
 	public:
@@ -109,37 +59,104 @@ class Network {
 			}
 		}
 
-		template <typename Exe>
-		void forward(Exe& executor, Matrix2D<float>& input) {
+		GENERIC_KERNEL(ForwardLayerKernel) {
 
-			Matrix2D<float>::add(executor, input, layers[0].biases, layers[0].outputs);
+			__host__ __device__ float activate(float input, Activation activation) {
+				if (activation == Activation::Sigmoid) {
+					return sigmoid(input);
+				}
+				else {
+					return input;
+				}
+			}
+
+			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> biases, Matrix3D<float> inputs, Matrix3D<float> currentInputs, Matrix3D<float> outputs, Activation activation) {
+				uint3 index = getThreadIdx();
+
+				float output = (weights.shape(1) > 0) ? 0.0f : currentInputs(index.z, index.y, 0);
+
+				for (unsigned int i = 0; i < weights.shape(1); i++) {
+					output += weights(index.y, i) * currentInputs(index.z, i, index.x);
+				}
+
+				output += biases(index.y, 0);
+
+				inputs(index.z, index.y, index.x) = output;
+				outputs(index.z, index.y, index.x) = activate(output, activation);
+			}
+		};
+
+		template <typename Exe>
+		void forward(Exe& executor, Matrix3D<float>& input) {
+
+			Activation activation = layers[0].type.getActivation();
+			executor.template execute<ForwardLayerKernel>({ layers[0].outputs.shape(2), layers[0].outputs.shape(1), layers[0].outputs.shape(0) }, layers[0].weights, layers[0].biases, layers[0].inputs, input, layers[0].outputs, activation);
 			
-			Matrix2D<float> currentInput = layers[0].outputs;
+			Matrix3D<float> currentInput = layers[0].outputs;
 			
 			for (int i = 1; i < layers.size(); i++) {
 				Layer& layer = layers[i];
 
 				Activation activation = layer.type.getActivation();
-				executor.template execute<ForwardLayerKernel>({ layer.outputs.shape(1), layer.outputs.shape(0) }, layer.weights, layer.biases, layer.inputs, currentInput, layer.outputs, activation);
+				executor.template execute<ForwardLayerKernel>({ layer.outputs.shape(2), layer.outputs.shape(1), layer.outputs.shape(0) }, layer.weights, layer.biases, layer.inputs, currentInput, layer.outputs, activation);
 
 				currentInput = layer.outputs;
 			}
 		}
 
+		GENERIC_KERNEL(OutputLayerErrorKernel) {
+			GENERIC_KERNEL_ENTRY(Matrix3D<float> target, Matrix3D<float> output, Matrix2D<float> error, Activation activation) {
+				uint3 index = getThreadIdx();
+				error(index.y, 0) = (target(0, index.y, 0) - output(0, index.y, 0)) * deriverate(output(0, index.y, 0), activation);
+			}
+		};
+
+		GENERIC_KERNEL(BackwardLayerKernel) {
+			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> errors, Matrix2D<float> prevErrors, Matrix3D<float> prevOutputs, Activation activation) {
+				uint3 index = getThreadIdx();
+
+				float sum = 0.0f;
+
+				for (unsigned int i = 0; i < weights.shape(0); i++) {
+					sum += weights(i, index.y) * errors(i, 0);
+				}
+
+				sum *= deriverate(prevOutputs(0, index.y, 0), activation);
+
+				prevErrors(index.y, 0) = sum;
+			}
+		};
+
 		template <typename Exe>
-		void backward(Exe& executor, Matrix2D<float>& target) {
+		void backward(Exe& executor, Matrix3D<float>& target) {
 
 			Layer& outputLayer = layers.back();
-			Matrix2D<float>::subtract(executor, target, outputLayer.outputs, outputLayer.errors);
-			applyDerivation(executor, outputLayer.outputs, outputLayer.errors, outputLayer.type.getActivation());
+
+			Activation activation = outputLayer.type.getActivation();
+			executor.template execute<OutputLayerErrorKernel>({ outputLayer.errors.shape(1), outputLayer.errors.shape(0) }, target, outputLayer.outputs, outputLayer.errors, activation);
 
 			for (int i = layers.size() - 2; i >= 0; i--) {
 				Layer& layer = layers[i];
 				Layer& nextLayer = layers[i + 1];
-				Matrix2D<float>::multiply(executor, nextLayer.weights, nextLayer.errors, layer.errors, true);
-				applyDerivation(executor, layer.inputs, layer.errors, layer.type.getActivation());
+
+				Activation activation = layer.type.getActivation();
+				executor.template execute<BackwardLayerKernel>({ layer.errors.shape(1), layer.errors.shape(0) }, nextLayer.weights, nextLayer.errors, layer.errors, layer.inputs, activation);
 			}
 		}
+
+		GENERIC_KERNEL(UpdateWeightsKernel) {
+			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> errors, Matrix3D<float> prevOutputs, float learningRate) {
+				uint3 index = getThreadIdx();
+				weights(index.y, index.x) += learningRate * errors(index.y, 0) * prevOutputs(0, index.x, 0);
+			}
+		};
+
+		GENERIC_KERNEL(UpdateBiasesKernel) {
+			GENERIC_KERNEL_ENTRY(Matrix2D<float> biases, Matrix2D<float> errors, float learningRate) {
+				uint3 index = getThreadIdx();
+				biases(index.y, 0) += learningRate * errors(index.y, 0);
+			}
+		};
 
 		template <typename Exe>
 		void update(Exe& executor, float learningRate) {
@@ -152,11 +169,10 @@ class Network {
 				}
 
 				executor.template execute<UpdateBiasesKernel>({ layer.biases.shape(1), layer.biases.shape(0) }, layer.biases, layer.errors, learningRate);
-
 			}
 		}
 
-		Matrix2D<float>& getOutput() {
+		Matrix3D<float>& getOutput() {
 			return layers.back().outputs;
 		}
 };

@@ -5,11 +5,11 @@
 
 template <typename T>
 struct DataSet {
-	Matrix2D<T> input;
-	Matrix2D<T> output;
+	Matrix3D<T> input;
+	Matrix3D<T> output;
 
-	DataSet(const std::initializer_list<T>& input, const std::initializer_list<T>& output) 
-		: input({ (unsigned int)input.size(), 1 }, input), output({ (unsigned int)output.size(), 1 }, output) {
+	DataSet(const std::initializer_list<T>& input, const std::initializer_list<T>& output, uint32_t batchSize = 1)
+		: input({ batchSize, (unsigned int)input.size(), 1 }, input), output({ batchSize, (unsigned int)output.size(), 1 }, output) {
 
 	}
 };

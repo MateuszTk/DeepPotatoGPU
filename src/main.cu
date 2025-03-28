@@ -33,10 +33,10 @@ int main() {
 		DenseLayer(1, Activation::Sigmoid)
 	}, 1);
 
-	srand(time(NULL));
+	srand(8888);
 	network.initialize();
 
-	Matrix2D<float> input({ 2, 1 });
+	Matrix3D<float> input({ 1, 2, 1 });
 
 	for (int i = 0; i < 4000; i++) {
 		for (DataSet<float>& dataSet : data) {
@@ -54,7 +54,7 @@ int main() {
 					input = { (float)x / window.getWidth(), (float)y / window.getHeight() };
 					network.forward(exec, input);
 
-					uint8_t color = (uint8_t)(network.getOutput()(0, 0) * 255.0f);
+					uint8_t color = (uint8_t)(network.getOutput()(0, 0, 0) * 255.0f);
 					window.setPixel(x, y, color, color, color);
 				}
 			}
