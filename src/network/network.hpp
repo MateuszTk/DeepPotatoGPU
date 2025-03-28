@@ -7,18 +7,6 @@ class Network {
 
 	public:
 
-		GENERIC_KERNEL(MatrixActivationKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix2D<float> inputs, Matrix2D<float> outputs, Activation activation) {
-				uint3 index = getThreadIdx();
-				if (activation == Activation::Sigmoid) {
-					outputs(index.y, index.x) = sigmoid(inputs(index.y, index.x));
-				}
-				else {
-					outputs(index.y, index.x) = inputs(index.y, index.x);
-				}
-			}
-		};
-
 		GENERIC_KERNEL(MatrixDeriverationKernel) {
 			GENERIC_KERNEL_ENTRY(Matrix2D<float> inputs, Matrix2D<float> errors, Activation activation) {
 				uint3 index = getThreadIdx();
@@ -45,6 +33,34 @@ class Network {
 			}
 		};
 
+		GENERIC_KERNEL(ForwardLayerKernel) {
+
+			__host__ __device__ float activate(float input, Activation activation) {
+				uint3 index = getThreadIdx();
+				if (activation == Activation::Sigmoid) {
+					return sigmoid(input);
+				}
+				else {
+					return input;
+				}
+			}
+
+			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> biases, Matrix2D<float> inputs, Matrix2D<float> currentInputs, Matrix2D<float> outputs, Activation activation) {
+				uint3 index = getThreadIdx();
+
+				float output = 0.0f;
+
+				for (unsigned int i = 0; i < weights.shape(1); i++) {
+					output += weights(index.y, i) * currentInputs(i, index.x);
+				}
+
+				output += biases(index.y, 0);
+
+				inputs(index.y, index.x) = output;
+				outputs(index.y, index.x) = activate(output, activation);
+			}
+		};
+
 	private:
 
 		std::vector<Layer> layers;
@@ -67,24 +83,19 @@ class Network {
 		}
 
 		template <typename Exe>
-		__host__ static void applyActivation(Exe& executor, Matrix2D<float>& inputs, Matrix2D<float>& outputs, Activation activation) {
-			executor.template execute<MatrixActivationKernel>({ inputs.shape(1), inputs.shape(0) }, inputs, outputs, activation);
-		}
-
-		template <typename Exe>
 		__host__ static void applyDerivation(Exe& executor, Matrix2D<float>& inputs, Matrix2D<float>& errors, Activation activation) {
 			executor.template execute<MatrixDeriverationKernel>({ inputs.shape(1), inputs.shape(0) }, inputs, errors, activation);
 		}
 
 	public:
 
-		Network(std::initializer_list<LayerType> layerTypes) {
+		Network(std::initializer_list<LayerType> layerTypes, uint32_t batchSize) {
 			layers.reserve(layerTypes.size());
 
 			uint32_t inputSize = 0;
 
 			for (const LayerType& layerType : layerTypes) {
-				layers.emplace_back(layerType, inputSize);
+				layers.emplace_back(layerType, inputSize, batchSize);
 				inputSize = layerType.getNeurons();
 			}
 		}
@@ -108,9 +119,8 @@ class Network {
 			for (int i = 1; i < layers.size(); i++) {
 				Layer& layer = layers[i];
 
-				Matrix2D<float>::multiply(executor, layer.weights, currentInput, layer.inputs);
-				Matrix2D<float>::add(executor, layer.inputs, layer.biases, layer.inputs);
-				applyActivation(executor, layer.inputs, layer.outputs, layer.type.getActivation());
+				Activation activation = layer.type.getActivation();
+				executor.template execute<ForwardLayerKernel>({ layer.outputs.shape(1), layer.outputs.shape(0) }, layer.weights, layer.biases, layer.inputs, currentInput, layer.outputs, activation);
 
 				currentInput = layer.outputs;
 			}
@@ -133,15 +143,8 @@ class Network {
 
 		template <typename Exe>
 		void update(Exe& executor, float learningRate) {
-			//std::cout << "\nUpdate network" << std::endl;
 			for (int i = 0; i < layers.size(); i++) {
 				Layer& layer = layers[i];
-				
-				/*std::cout << "\nUpdate layer " << i << std::endl;
-				std::cout << "Weights: " << layer.weights << std::endl;
-				std::cout << "Biases: " << layer.biases << std::endl;
-				std::cout << "Errors: " << layer.errors << std::endl;
-				std::cout << "Outputs: " << layer.outputs << std::endl;*/
 
 				if (i > 0) {
 					Layer& previousLayer = layers[i - 1];

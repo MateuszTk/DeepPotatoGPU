@@ -31,7 +31,7 @@ int main() {
 		InputLayer(2),
 		DenseLayer(3, Activation::Sigmoid),
 		DenseLayer(1, Activation::Sigmoid)
-	});
+	}, 1);
 
 	srand(time(NULL));
 	network.initialize();

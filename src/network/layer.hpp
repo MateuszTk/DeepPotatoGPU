@@ -48,10 +48,10 @@ struct Layer {
 		Matrix2D<float> inputs;
 		LayerType type;
 
-		Layer(const LayerType& type, uint32_t inputSize) :
+		Layer(const LayerType& type, uint32_t inputSize, uint32_t batchSize) :
 			weights({ type.getNeurons(), inputSize }),
-			biases({ type.getNeurons(), 1 }), 
-			outputs({ type.getNeurons(), 1 }), 
+			biases({ type.getNeurons(), 1 }),
+			outputs({ type.getNeurons(), 1 }),
 			errors({ type.getNeurons(), 1 }),
 			inputs({ type.getNeurons(), 1 }),
 			type(type) {

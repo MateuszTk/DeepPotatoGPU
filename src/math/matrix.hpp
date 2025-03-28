@@ -218,8 +218,10 @@ class Matrix {
 		template <typename Exe>
 		__host__ static void add(Exe& executor, Matrix2D<T>& matA, Matrix2D<T>& matB, Matrix2D<T>& matC) {
 
-			if (matA.shape(0) != matB.shape(0) || matA.shape(1) != matB.shape(1) || matA.shape(0) != matC.shape(0) || matA.shape(1) != matC.shape(1)) {
-				throw std::invalid_argument("Matrix dimensions do not match");
+			for (unsigned int i = 0; i < nDim; i++) {
+				if (matA.shape(i) != matB.shape(i) || matA.shape(i) != matC.shape(i)) {
+					throw std::invalid_argument("Matrix dimensions do not match");
+				}
 			}
 
 			executor.template execute<MatrixAddKernel>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
