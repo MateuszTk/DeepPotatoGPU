@@ -53,5 +53,9 @@ if (NOT ENABLE_CUDA)
 	set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CXX)
 endif()
 
+add_subdirectory("src/utils/display")
+
 add_executable(DeepPotatoGPU ${SOURCES})
+
+target_link_libraries(DeepPotatoGPU PUBLIC SimpleWindow)
 

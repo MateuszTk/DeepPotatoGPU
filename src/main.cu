@@ -10,6 +10,8 @@
 
 #include "utils/timer.hpp"
 
+#include "window.hpp"
+
 std::array<DataSet<float>, 4> data = {{
 	{{ 0, 0 }, { 0 }},
 	{{ 0, 1 }, { 1 }},
@@ -19,11 +21,11 @@ std::array<DataSet<float>, 4> data = {{
 
 int main() {
 
-	//test();
+	Window window(400, 400);
 
-	CUDAExecutor exec;
+	CPUExecutor exec;
 
-	Timer timer;
+	Timer timer, timer2;
 
 	Network network({
 		InputLayer(2),
@@ -34,11 +36,37 @@ int main() {
 	srand(time(NULL));
 	network.initialize();
 
+	Matrix2D<float> input({ 2, 1 });
+
 	for (int i = 0; i < 4000; i++) {
 		for (DataSet<float>& dataSet : data) {
 			network.forward(exec, dataSet.input);
 			network.backward(exec, dataSet.output);
 			network.update(exec, 0.2f);
+		}
+
+		if (i % 100 == 0) {
+			std::cout << "Epoch: " << i << "\n";
+			timer2.stop();
+
+			for (int y = 0; y < window.getHeight(); y++) {
+				for (int x = 0; x < window.getWidth(); x++) {
+					input = { (float)x / window.getWidth(), (float)y / window.getHeight() };
+					network.forward(exec, input);
+
+					uint8_t color = (uint8_t)(network.getOutput()(0, 0) * 255.0f);
+					window.setPixel(x, y, color, color, color);
+				}
+			}
+
+			window.update();
+			if (!window.frame()) {
+				break;
+			}
+
+			//std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+			timer2.start();
 		}
 	}
 	
