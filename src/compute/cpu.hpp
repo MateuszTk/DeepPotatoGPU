@@ -20,6 +20,8 @@ class CPUExecutor : public Executor {
 			EXECUTOR_CPU_LOG("Launching CPU kernel with arguments: %s\n", ARGS_TO_STRING(args));
 
 			Kernel kernel{};
+			kernel.blockIdxG = { 0, 0, 0 };
+			kernel.blockDimG = threadsPerBlock;
 
 			for (unsigned int z = 0; z < threadsPerBlock.z; z++) {
 				for (unsigned int y = 0; y < threadsPerBlock.y; y++) {

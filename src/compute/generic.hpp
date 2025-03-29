@@ -7,7 +7,8 @@ struct GenericKernel {
 	protected:
 
 		uint3 threadIdxG;
-		uint3 blockIdx;
+		uint3 blockIdxG;
+		uint3 blockDimG;
 
 	protected:
 
@@ -24,6 +25,22 @@ struct GenericKernel {
 				return threadIdx;
 			#else
 				return threadIdxG;
+			#endif
+		}
+
+		__device__ __host__ uint3 getBlockIdx() {
+			#ifdef __CUDA_ARCH__
+			return blockIdx;
+			#else
+			return blockIdxG;
+			#endif
+		}
+
+		__device__ __host__ uint3 getBlockDim() {
+			#ifdef __CUDA_ARCH__
+				return blockDim;
+			#else
+				return blockDimG;
 			#endif
 		}
 

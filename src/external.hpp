@@ -1,5 +1,21 @@
 #pragma once
 
+// C++
+#include <initializer_list>
+#include <array>
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include <concepts>
+#include <stdio.h>
+#include <string.h>
+#include <chrono>
+#include <thread>
+#include <algorithm>
+
 // CUDA
 #ifdef CUDA_AVAILIABLE
     #include "cuda_runtime.h"
@@ -20,21 +36,14 @@
     #define CUDAExecutor CPUExecutor
 #endif
 
-// C++
-#include <initializer_list>
-#include <array>
-#include <functional>
-#include <iostream>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <vector>
-#include <concepts>
-#include <stdio.h>
-#include <string.h>
-#include <chrono>
-#include <thread>
+__host__ __device__ uint3 operator+(const uint3& a, const uint3& b) {
+    return { a.x + b.x, a.y + b.y, a.z + b.z };
+}
+
+__host__ __device__ uint3 operator*(const uint3& a, const uint3& b) {
+    return { a.x * b.x, a.y * b.y, a.z * b.z };
+}
 
 // Options
-#define BUFFER_DEBUG_ON 1
+#define BUFFER_DEBUG_ON 0
 #define EXECUTOR_DEBUG_ON 0

@@ -48,6 +48,15 @@ void Window::update() {
 	#endif
 }
 
+void Window::setPixel(int index, uint8_t r, uint8_t g, uint8_t b) {
+	if (index >= 0 && index < width * height) {
+		pixels[index * 4 + 0] = r;
+		pixels[index * 4 + 1] = g;
+		pixels[index * 4 + 2] = b;
+		pixels[index * 4 + 3] = 255;
+	}
+}
+
 void Window::setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b) {
 	if (x >= 0 && x < width && y >= 0 && y < height) {
 		int index = (y * width + x) * 4;

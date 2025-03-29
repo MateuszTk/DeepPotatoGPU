@@ -150,7 +150,11 @@ class Matrix {
 		template <bool transposeA = false>
 		GENERIC_KERNEL(MatrixMultiplyKernel) {
 			GENERIC_KERNEL_ENTRY(Matrix2D<T> matA, Matrix2D<T> matB, Matrix2D<T> matC) {
-				uint3 index = getThreadIdx();
+				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
+
+				if (index.x >= matC.shape(1) || index.y >= matC.shape(0)) {
+					return;
+				}
 
 				if constexpr (transposeA) {
 					unsigned int aRows = matA.shape(0);
@@ -197,7 +201,12 @@ class Matrix {
 
 		GENERIC_KERNEL(MatrixScalarMultiplyKernel) {
 			GENERIC_KERNEL_ENTRY(Matrix2D<T> matA, T scalar, Matrix2D<T> matB) {
-				uint3 index = getThreadIdx();
+				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
+
+				if (index.x >= matB.shape(1) || index.y >= matB.shape(0)) {
+					return;
+				}
+
 				matB(index.y, index.x) = matA(index.y, index.x) * scalar;
 			}
 		};
@@ -209,7 +218,11 @@ class Matrix {
 
 		GENERIC_KERNEL(MatrixAddKernel) {
 			GENERIC_KERNEL_ENTRY(Matrix2D<T> matA, Matrix2D<T> matB, Matrix2D<T> matC) {
-				uint3 index = getThreadIdx();
+				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
+
+				if (index.x >= matC.shape(1) || index.y >= matC.shape(0)) {
+					return;
+				}
 
 				matC(index.y, index.x) = matA(index.y, index.x) + matB(index.y, index.x);
 			}
@@ -229,7 +242,12 @@ class Matrix {
 
 		GENERIC_KERNEL(MatrixSubtractKernel) {
 			GENERIC_KERNEL_ENTRY(Matrix2D<T> matA, Matrix2D<T> matB, Matrix2D<T> matC) {
-				uint3 index = getThreadIdx();
+				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
+
+				if (index.x >= matC.shape(1) || index.y >= matC.shape(0)) {
+					return;
+				}
+
 				matC(index.y, index.x) = matA(index.y, index.x) - matB(index.y, index.x);
 			}
 		};
