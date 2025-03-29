@@ -33,7 +33,7 @@ class Network {
 		void initRandom(Matrix2D<float>& matrix) {
 			for (unsigned int y = 0; y < matrix.shape(0); y++) {
 				for (unsigned int x = 0; x < matrix.shape(1); x++) {
-					matrix(y, x) = (float)rand() / RAND_MAX;
+					matrix(y, x) = (rand() / (float)RAND_MAX) * 2.0f - 1.0f;
 				}
 			}
 		}

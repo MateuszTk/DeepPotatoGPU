@@ -12,9 +12,9 @@ Window::Window(int width, int height) : width(width), height(height) {
 
 		RegisterClass(&wc);
 
-		hwnd = CreateWindow(wc.lpszClassName, "Window", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, width, height, 0, 0, GetModuleHandle(0), 0);
+		hwnd = CreateWindow(wc.lpszClassName, "Window", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, width, height, 0, 0, GetModuleHandle(0), 0);
 
-		ShowWindow(hwnd, SW_SHOWDEFAULT);
+		ShowWindow(hwnd, SW_SHOW);
 
 		hdc = GetDC(hwnd);
 
@@ -50,20 +50,17 @@ void Window::update() {
 
 void Window::setPixel(int index, uint8_t r, uint8_t g, uint8_t b) {
 	if (index >= 0 && index < width * height) {
-		pixels[index * 4 + 0] = r;
+		pixels[index * 4 + 0] = b;
 		pixels[index * 4 + 1] = g;
-		pixels[index * 4 + 2] = b;
+		pixels[index * 4 + 2] = r;
 		pixels[index * 4 + 3] = 255;
 	}
 }
 
 void Window::setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b) {
 	if (x >= 0 && x < width && y >= 0 && y < height) {
-		int index = (y * width + x) * 4;
-		pixels[index + 0] = r;
-		pixels[index + 1] = g;
-		pixels[index + 2] = b;
-		pixels[index + 3] = 255;
+		int index = (y * width + x);
+		setPixel(index, r, g, b);
 	}
 }
 

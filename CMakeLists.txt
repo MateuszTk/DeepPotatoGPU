@@ -24,6 +24,9 @@ else()
 	project("DeepPotatoGPU" LANGUAGES CXX)
 endif()
 
+set(FETCHCONTENT_QUIET OFF)
+include(FetchContent)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -46,8 +49,17 @@ if (ENABLE_CUDA)
 	endif()
 endif()
 
+FetchContent_Declare(
+	stb
+	GIT_REPOSITORY https://github.com/nothings/stb
+	GIT_TAG 5736b15f7ea0ffb08dd38af21067c314d6a3aae9
+	GIT_PROGRESS TRUE
+)
+
+FetchContent_MakeAvailable(stb)
+
 file(GLOB SOURCES "src/*.cu" "src/*.cpp")
-include_directories("src/")
+include_directories("src/" ${stb_SOURCE_DIR})
 
 if (NOT ENABLE_CUDA)
 	set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CXX)
@@ -58,4 +70,13 @@ add_subdirectory("src/utils/display")
 add_executable(DeepPotatoGPU ${SOURCES})
 
 target_link_libraries(DeepPotatoGPU PUBLIC SimpleWindow)
+
+add_custom_target(copy_assets ALL
+	COMMENT "Copying assets to build directory"
+	COMMAND ${CMAKE_COMMAND} -E copy_directory
+			${CMAKE_CURRENT_SOURCE_DIR}/data
+			${CMAKE_CURRENT_BINARY_DIR}/data
+)
+
+add_dependencies(${PROJECT_NAME} copy_assets)
 
