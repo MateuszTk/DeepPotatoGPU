@@ -10,7 +10,7 @@
 
 #include "utils/timer.hpp"
 
-#include "window.hpp"
+#include "canvas.hpp"
 #include "utils/image.hpp"
 
 void xorDemo();
@@ -31,7 +31,7 @@ std::array<DataSet<float>, 4> data = {{
 
 void xorDemo() {
 
-	Window window(400, 400);
+	Canvas canvas(400, 400);
 
 	CUDAExecutor exec;
 
@@ -63,11 +63,11 @@ void xorDemo() {
 
 			int index = 0;
 
-			for (int y = 0; y < window.getHeight(); y++) {
-				for (int x = 0; x < window.getWidth(); x++) {
+			for (int y = 0; y < canvas.getHeight(); y++) {
+				for (int x = 0; x < canvas.getWidth(); x++) {
 
-					input(index, 0, 0) = (float)x / window.getWidth();
-					input(index, 1, 0) = (float)y / window.getHeight();
+					input(index, 0, 0) = (float)x / canvas.getWidth();
+					input(index, 1, 0) = (float)y / canvas.getHeight();
 
 					index++;
 
@@ -75,11 +75,11 @@ void xorDemo() {
 
 						network.forward(exec, input);
 
-						int startIdx = x + y * window.getWidth() - network.getMaximumBatchSize() + 1;
+						int startIdx = x + y * canvas.getWidth() - network.getMaximumBatchSize() + 1;
 
 						for (int i = 0; i < network.getMaximumBatchSize(); i++) {
 							uint8_t color = (uint8_t)(network.getOutput()(i, 0, 0) * 255.0f);
-							window.setPixel(startIdx + i, color, color, color);
+							canvas.setPixel(startIdx + i, color, color, color);
 						}
 
 						index = 0;
@@ -87,8 +87,8 @@ void xorDemo() {
 				}
 			}
 
-			window.update();
-			if (!window.frame()) {
+			canvas.update();
+			if (!canvas.frame()) {
 				break;
 			}
 
@@ -111,7 +111,7 @@ void image() {
 
 	Image image("data/happybread.png");
 
-	Window window(200, 200);
+	Canvas canvas(200, 200);
 
 	CPUExecutor exec;
 
@@ -122,7 +122,7 @@ void image() {
 		DenseLayer(20, Activation::Sigmoid),
 		DenseLayer(10, Activation::Sigmoid),
 		DenseLayer(3, Activation::Sigmoid)
-		}, window.getWidth() * window.getHeight());
+		}, canvas.getWidth() * canvas.getHeight());
 
 	srand(time(NULL));
 	network.initialize();
@@ -150,11 +150,11 @@ void image() {
 
 			int index = 0;
 
-			for (int y = 0; y < window.getHeight(); y++) {
-				for (int x = 0; x < window.getWidth(); x++) {
+			for (int y = 0; y < canvas.getHeight(); y++) {
+				for (int x = 0; x < canvas.getWidth(); x++) {
 
-					testInput(index, 0, 0) = (float)x / window.getWidth();
-					testInput(index, 1, 0) = (float)y / window.getHeight();
+					testInput(index, 0, 0) = (float)x / canvas.getWidth();
+					testInput(index, 1, 0) = (float)y / canvas.getHeight();
 
 					index++;
 
@@ -162,13 +162,13 @@ void image() {
 
 						network.forward(exec, testInput);
 
-						int startIdx = x + y * window.getWidth() - network.getMaximumBatchSize() + 1;
+						int startIdx = x + y * canvas.getWidth() - network.getMaximumBatchSize() + 1;
 
 						for (int i = 0; i < network.getMaximumBatchSize(); i++) {
 							uint8_t colorR = (uint8_t)(network.getOutput()(i, 0, 0) * 255.0f);
 							uint8_t colorG = (uint8_t)(network.getOutput()(i, 1, 0) * 255.0f);
 							uint8_t colorB = (uint8_t)(network.getOutput()(i, 2, 0) * 255.0f);
-							window.setPixel(startIdx + i, colorR, colorG, colorB);
+							canvas.setPixel(startIdx + i, colorR, colorG, colorB);
 						}
 
 						index = 0;
@@ -176,8 +176,8 @@ void image() {
 				}
 			}
 
-			window.update();
-			if (!window.frame()) {
+			canvas.update();
+			if (!canvas.frame()) {
 				break;
 			}
 

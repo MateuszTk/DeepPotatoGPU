@@ -1,7 +1,8 @@
 
-#include "window.hpp"
+#include "canvas.hpp"
+#include <stdexcept>
 
-Window::Window(int width, int height) : width(width), height(height) {
+Canvas::Canvas(int width, int height) : width(width), height(height) {
 	pixels = new uint8_t[width * height * 4];
 
 	#ifdef _WIN32
@@ -25,30 +26,44 @@ Window::Window(int width, int height) : width(width), height(height) {
 		bmi.bmiHeader.biBitCount = 32;
 		bmi.bmiHeader.biCompression = BI_RGB;
 	#else
+		display = XOpenDisplay(nullptr);
+		if (!display) {
+			throw std::runtime_error("Failed to open X display");
+		}
 
+		int screen = DefaultScreen(display);
+		window = XCreateSimpleWindow(display, RootWindow(display, screen), 0, 0, width, height, 1, BlackPixel(display, screen), WhitePixel(display, screen));
+		XSelectInput(display, window, ExposureMask | KeyPressMask);
+		XMapWindow(display, window);
+
+		gc = XCreateGC(display, window, 0, nullptr);
+		image = XCreateImage(display, DefaultVisual(display, screen), 24, ZPixmap, 0, reinterpret_cast<char*>(pixels), width, height, 32, 0);
 	#endif
 }
 
-Window::~Window() {
-	delete[] pixels;
-
+Canvas::~Canvas() {
 	#ifdef _WIN32
+		delete[] pixels;
 		ReleaseDC(hwnd, hdc);
 		DestroyWindow(hwnd);
 	#else
-
+		XDestroyImage(image);
+		XFreeGC(display, gc);
+		XDestroyWindow(display, window);
+		XCloseDisplay(display);
 	#endif
 }
 
-void Window::update() {
+void Canvas::update() {
 	#ifdef _WIN32
 		StretchDIBits(hdc, 0, 0, width, height, 0, 0, width, height, pixels, &bmi, DIB_RGB_COLORS, SRCCOPY);
 	#else
-
+		XPutImage(display, window, gc, image, 0, 0, 0, 0, width, height);
+		XFlush(display);
 	#endif
 }
 
-void Window::setPixel(int index, uint8_t r, uint8_t g, uint8_t b) {
+void Canvas::setPixel(int index, uint8_t r, uint8_t g, uint8_t b) {
 	if (index >= 0 && index < width * height) {
 		pixels[index * 4 + 0] = b;
 		pixels[index * 4 + 1] = g;
@@ -57,14 +72,14 @@ void Window::setPixel(int index, uint8_t r, uint8_t g, uint8_t b) {
 	}
 }
 
-void Window::setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b) {
+void Canvas::setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b) {
 	if (x >= 0 && x < width && y >= 0 && y < height) {
 		int index = (y * width + x);
 		setPixel(index, r, g, b);
 	}
 }
 
-bool Window::frame() {
+bool Canvas::frame() {
 	#ifdef _WIN32
 		MSG msg;
 
@@ -75,14 +90,22 @@ bool Window::frame() {
 
 		return msg.message != WM_QUIT;
 	#else
+		XEvent event;
+		while (XPending(display)) {
+			XNextEvent(display, &event);
+			if (event.type == KeyPress) {
+				return false;
+			}
+		}
+
 		return true;
 	#endif
 }
 
-int Window::getWidth() const {
+int Canvas::getWidth() const {
 	return width;
 }
 
-int Window::getHeight() const {
+int Canvas::getHeight() const {
 	return height;
 }

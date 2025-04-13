@@ -15,6 +15,7 @@
 #include <chrono>
 #include <thread>
 #include <algorithm>
+#include <cmath>
 
 // CUDA
 #ifdef CUDA_AVAILIABLE
@@ -26,7 +27,13 @@
     };
 
     struct dim3 {
-        unsigned int x = 1, y = 1, z = 1;
+        unsigned int x, y, z;
+
+        dim3(unsigned int x = 1, unsigned int y = 1, unsigned int z = 1) : x(x), y(y), z(z) {}
+        dim3(uint3 v) : x(v.x), y(v.y), z(v.z) {}
+        operator uint3() const {
+            return { x, y, z };
+        }
     };
 
     #define __global__

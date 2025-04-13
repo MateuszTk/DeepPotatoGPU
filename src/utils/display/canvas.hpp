@@ -9,7 +9,7 @@
 	#include <X11/Xutil.h>
 #endif
 
-class Window {
+class Canvas {
 
 	private:
 
@@ -18,7 +18,10 @@ class Window {
 			HDC hdc;
 			BITMAPINFO bmi{};
 		#else
-
+			Display* display;
+			Window window;
+			GC gc;
+			XImage* image;
 		#endif
 
 		int width;
@@ -27,8 +30,8 @@ class Window {
 
 	public:
 
-		Window(int width, int height);
-		~Window();
+		Canvas(int width, int height);
+		~Canvas();
 
 		void update();
 		void setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b);
