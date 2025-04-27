@@ -100,7 +100,7 @@ class Matrix {
 		}
 
 		__host__ Matrix& operator=(const std::initializer_list<T>& values) {
-			if (values.size() != buffer.size()) {
+			if (values.size() > buffer.size()) {
 				throw std::invalid_argument("Invalid number of elements");
 			}
 

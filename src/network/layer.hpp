@@ -44,15 +44,15 @@ struct Layer {
 		Matrix2D<float> weights;
 		Matrix2D<float> biases;
 		Matrix3D<float> outputs;
-		Matrix2D<float> errors;
+		Matrix3D<float> errors;
 		Matrix3D<float> inputs;
 		LayerType type;
 
-		Layer(const LayerType& type, uint32_t inputSize, uint32_t batchSize) :
+		Layer(const LayerType& type, uint32_t inputSize, uint32_t batchSize, uint32_t maxTrainBatchSize) :
 			weights({ type.getNeurons(), inputSize }),
 			biases({ type.getNeurons(), 1 }),
 			outputs({ batchSize, type.getNeurons(), 1 }),
-			errors({ type.getNeurons(), 1 }),
+			errors({ maxTrainBatchSize, type.getNeurons(), 1 }),
 			inputs({ batchSize, type.getNeurons(), 1 }),
 			type(type) {
 	

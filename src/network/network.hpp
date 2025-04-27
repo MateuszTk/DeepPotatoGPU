@@ -29,6 +29,7 @@ class Network {
 
 		std::vector<Layer> layers;
 		uint32_t maxBatchSize;
+		uint32_t maxTrainBatchSize;
 
 		void initRandom(Matrix2D<float>& matrix) {
 			for (unsigned int y = 0; y < matrix.shape(0); y++) {
@@ -40,13 +41,18 @@ class Network {
 
 	public:
 
-		Network(std::initializer_list<LayerType> layerTypes, uint32_t maxBatchSize) : maxBatchSize(maxBatchSize) {
+		Network(std::initializer_list<LayerType> layerTypes, uint32_t maxBatchSize, uint32_t maxTrainBatchSize) 
+			: maxBatchSize(maxBatchSize), maxTrainBatchSize(maxTrainBatchSize) {
 			layers.reserve(layerTypes.size());
 
 			uint32_t inputSize = 0;
 
+			if (maxTrainBatchSize > maxBatchSize) {
+				maxBatchSize = maxTrainBatchSize;
+			}
+
 			for (const LayerType& layerType : layerTypes) {
-				layers.emplace_back(layerType, inputSize, maxBatchSize);
+				layers.emplace_back(layerType, inputSize, maxBatchSize, maxTrainBatchSize);
 				inputSize = layerType.getNeurons();
 			}
 		}
@@ -120,34 +126,34 @@ class Network {
 		}
 
 		GENERIC_KERNEL(OutputLayerErrorKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix3D<float> target, Matrix3D<float> output, Matrix2D<float> error, Activation activation) {
+			GENERIC_KERNEL_ENTRY(Matrix3D<float> target, Matrix3D<float> output, Matrix3D<float> error, Activation activation) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 
 				if (index.x >= target.shape(2) || index.y >= target.shape(1) || index.z >= target.shape(0)) {
 					return;
 				}
 
-				error(index.y, 0) = (target(0, index.y, 0) - output(0, index.y, 0)) * deriverate(output(0, index.y, 0), activation);
+				error(index.z, index.y, 0) = (target(index.z, index.y, 0) - output(index.z, index.y, 0)) * deriverate(output(index.z, index.y, 0), activation);
 			}
 		};
 
 		GENERIC_KERNEL(BackwardLayerKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> errors, Matrix2D<float> prevErrors, Matrix3D<float> prevOutputs, Activation activation) {
+			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix3D<float> errors, Matrix3D<float> prevErrors, Matrix3D<float> prevOutputs, Activation activation) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 
-				if (index.x >= prevErrors.shape(1) || index.y >= prevErrors.shape(0)) {
+				if (index.x >= prevErrors.shape(2) || index.y >= prevErrors.shape(1) || index.z >= prevErrors.shape(0)) {
 					return;
 				}
 
 				float sum = 0.0f;
 
 				for (unsigned int i = 0; i < weights.shape(0); i++) {
-					sum += weights(i, index.y) * errors(i, 0);
+					sum += weights(i, index.y) * errors(index.z, i, 0);
 				}
 
-				sum *= deriverate(prevOutputs(0, index.y, 0), activation);
+				sum *= deriverate(prevOutputs(index.z, index.y, 0), activation);
 
-				prevErrors(index.y, 0) = sum;
+				prevErrors(index.z, index.y, 0) = sum;
 			}
 		};
 
@@ -157,7 +163,7 @@ class Network {
 			Layer& outputLayer = layers.back();
 
 			Activation activation = outputLayer.type.getActivation();
-			executor.template execute<OutputLayerErrorKernel>({ outputLayer.errors.shape(1), outputLayer.errors.shape(0) },
+			executor.template execute<OutputLayerErrorKernel>({ outputLayer.errors.shape(2), outputLayer.errors.shape(1), target.shape(0) },
 				target, outputLayer.outputs, outputLayer.errors, activation
 			);
 
@@ -166,35 +172,38 @@ class Network {
 				Layer& nextLayer = layers[i + 1];
 
 				Activation activation = layer.type.getActivation();
-				executor.template execute<BackwardLayerKernel>({ layer.errors.shape(1), layer.errors.shape(0) }, 
+				executor.template execute<BackwardLayerKernel>({ layer.errors.shape(2), layer.errors.shape(1), target.shape(0) },
 					nextLayer.weights, nextLayer.errors, layer.errors, layer.inputs, activation
 				);
 			}
 		}
 
 		GENERIC_KERNEL(UpdateWeightsAndBiasesKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> biases, Matrix2D<float> errors, Matrix3D<float> prevOutputs, float learningRate) {
+			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> biases, Matrix3D<float> errors, Matrix3D<float> prevOutputs, float learningRate, unsigned int updateBatchSize) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 
 				if (index.x >= weights.shape(1) || index.y >= weights.shape(0)) {
 					return;
 				}
 
-				for (unsigned int x = 0; x < prevOutputs.shape(1); x++) {
-					weights(index.y, x) += learningRate * errors(index.y, 0) * prevOutputs(0, x, 0);
-				}
+				for (unsigned int i = 0; i < updateBatchSize; i++) {
+					for (unsigned int x = 0; x < prevOutputs.shape(1); x++) {
+						weights(index.y, x) += learningRate * errors(i, index.y, 0) * prevOutputs(i, x, 0);
+					}
 
-				biases(index.y, 0) += learningRate * errors(index.y, 0);
+					biases(index.y, 0) += learningRate * errors(i, index.y, 0);
+				}
 			}
 		};
 
 		template <typename Exe>
-		void update(Exe& executor, float learningRate) {
+		void update(Exe& executor, Matrix3D<float>& target, float learningRate) {
 			for (int i = 1; i < layers.size(); i++) {
 				Layer& layer = layers[i];
 				Layer& previousLayer = layers[i - 1];
+				unsigned int updateBatchSize = target.shape(0);
 				executor.template execute<UpdateWeightsAndBiasesKernel>({ 1, layer.weights.shape(0) },
-					layer.weights, layer.biases, layer.errors, previousLayer.outputs, learningRate
+					layer.weights, layer.biases, layer.errors, previousLayer.outputs, learningRate, updateBatchSize
 				);
 			}
 		}
@@ -205,5 +214,9 @@ class Network {
 
 		uint32_t getMaximumBatchSize() const {
 			return maxBatchSize;
+		}
+
+		uint32_t getMaximumTrainBatchSize() const {
+			return maxTrainBatchSize;
 		}
 };

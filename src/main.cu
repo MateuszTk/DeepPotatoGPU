@@ -41,19 +41,28 @@ void xorDemo() {
 		InputLayer(2),
 		DenseLayer(3, Activation::Sigmoid),
 		DenseLayer(1, Activation::Sigmoid)
-		}, 400 * 400);
+		}, 400 * 400, data.size());
 
 	srand(time(NULL));
 	network.initialize();
 
 	Matrix3D<float> input({ network.getMaximumBatchSize(), 2, 1 });
 
+	Matrix3D<float> trainInput({ network.getMaximumTrainBatchSize(), 2, 1 });
+	Matrix3D<float> trainOutput({ network.getMaximumTrainBatchSize(), 1, 1 });
+
+	int index = 0;
+	for (DataSet<float>& dataSet : data) {
+		trainInput(index, 0, 0) = dataSet.input(0, 0, 0);
+		trainInput(index, 1, 0) = dataSet.input(0, 1, 0);
+		trainOutput(index, 0, 0) = dataSet.output(0, 0, 0);
+		index++;
+	}
+
 	for (int i = 0; i < 4000; i++) {
-		for (DataSet<float>& dataSet : data) {
-			network.forward(exec, dataSet.input);
-			network.backward(exec, dataSet.output);
-			network.update(exec, 0.5f);
-		}
+		network.forward(exec, trainInput);
+		network.backward(exec, trainOutput);
+		network.update(exec, trainOutput, 0.5f);
 
 		if (i % 100 == 0) {
 			std::cout << "Epoch: " << i << "\n";
@@ -113,34 +122,42 @@ void image() {
 
 	Canvas canvas(200, 200);
 
-	CPUExecutor exec;
+	CUDAExecutor exec;
 
 	Timer timer, timer2;
 
 	Network network({
 		InputLayer(2),
+		DenseLayer(30, Activation::Sigmoid),
 		DenseLayer(20, Activation::Sigmoid),
 		DenseLayer(10, Activation::Sigmoid),
 		DenseLayer(3, Activation::Sigmoid)
-		}, canvas.getWidth() * canvas.getHeight());
+		}, canvas.getWidth() * canvas.getHeight(), 25);
 
-	srand(8888);
+	srand(time(NULL));
 	network.initialize();
 
 	Matrix3D<float> testInput({ network.getMaximumBatchSize(), 2, 1 });
-	DataSet<float> trainingDataSet({ 0, 0 }, { 0, 0, 0 });
+	DataSet<float> trainingDataSet({ 0, 0 }, { 0, 0, 0 }, network.getMaximumTrainBatchSize());
+
+	int batchIndex = 0;
 
 	for (int i = 0; i < 1'000'000'000; i++) {
-		trainingDataSet.input(0, 0, 0) = (rand() / (float)RAND_MAX);
-		trainingDataSet.input(0, 1, 0) = (rand() / (float)RAND_MAX);
-		uint3 pixel = image.getPixel(trainingDataSet.input(0, 0, 0), trainingDataSet.input(0, 1, 0));
-		trainingDataSet.output(0, 0, 0) = pixel.x / 255.0f;
-		trainingDataSet.output(0, 1, 0) = pixel.y / 255.0f;
-		trainingDataSet.output(0, 2, 0) = pixel.z / 255.0f;
 
-		network.forward(exec, trainingDataSet.input);
-		network.backward(exec, trainingDataSet.output);
-		network.update(exec, 0.3f);
+		trainingDataSet.input(batchIndex, 0, 0) = (rand() / (float)RAND_MAX);
+		trainingDataSet.input(batchIndex, 1, 0) = (rand() / (float)RAND_MAX);
+		uint3 pixel = image.getPixel(trainingDataSet.input(batchIndex, 0, 0), trainingDataSet.input(batchIndex, 1, 0));
+		trainingDataSet.output(batchIndex, 0, 0) = pixel.x / 255.0f;
+		trainingDataSet.output(batchIndex, 1, 0) = pixel.y / 255.0f;
+		trainingDataSet.output(batchIndex, 2, 0) = pixel.z / 255.0f;
+		batchIndex++;
+
+		if (batchIndex == network.getMaximumTrainBatchSize()) {
+			network.forward(exec, trainingDataSet.input);
+			network.backward(exec, trainingDataSet.output);
+			network.update(exec, trainingDataSet.output, 0.1f);
+			batchIndex = 0;
+		}
 
 		if (i % 100000 == 0) {
 			std::cout << "Epoch: " << i << "\n";
