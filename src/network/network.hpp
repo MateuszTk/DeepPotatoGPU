@@ -78,13 +78,15 @@ class Network {
 					return;
 				}
 
+				// If is first layer, the weights are empty and the input should be forwarded directly to the output
 				float output = (weights.shape(1) > 0) ? 0.0f : currentInputs(index.z, index.y, 0);
 
 				for (unsigned int i = 0; i < weights.shape(1); i++) {
 					output += weights(index.y, i) * currentInputs(index.z, i, index.x);
 				}
 
-				output += biases(index.y, 0);
+				// If is first layer, the biases are empty and the input should be forwarded directly to the output
+				output += (weights.shape(1) > 0) ? biases(index.y, 0) : 0.0f;
 
 				inputs(index.z, index.y, index.x) = output;
 				outputs(index.z, index.y, index.x) = activate(output, activation);
@@ -99,7 +101,9 @@ class Network {
 			}
 
 			Activation activation = layers[0].type.getActivation();
-			executor.template execute<ForwardLayerKernel>({ layers[0].outputs.shape(2), layers[0].outputs.shape(1), input.shape(0) }, layers[0].weights, layers[0].biases, layers[0].inputs, input, layers[0].outputs, activation);
+			executor.template execute<ForwardLayerKernel>({ layers[0].outputs.shape(2), layers[0].outputs.shape(1), input.shape(0) }, 
+				layers[0].weights, layers[0].biases, layers[0].inputs, input, layers[0].outputs, activation
+			);
 			
 			Matrix3D<float> currentInput = layers[0].outputs;
 			
@@ -107,7 +111,9 @@ class Network {
 				Layer& layer = layers[i];
 
 				Activation activation = layer.type.getActivation();
-				executor.template execute<ForwardLayerKernel>({ layer.outputs.shape(2), layer.outputs.shape(1), input.shape(0) }, layer.weights, layer.biases, layer.inputs, currentInput, layer.outputs, activation);
+				executor.template execute<ForwardLayerKernel>({ layer.outputs.shape(2), layer.outputs.shape(1), input.shape(0) },
+					layer.weights, layer.biases, layer.inputs, currentInput, layer.outputs, activation
+				);
 
 				currentInput = layer.outputs;
 			}
@@ -151,35 +157,31 @@ class Network {
 			Layer& outputLayer = layers.back();
 
 			Activation activation = outputLayer.type.getActivation();
-			executor.template execute<OutputLayerErrorKernel>({ outputLayer.errors.shape(1), outputLayer.errors.shape(0) }, target, outputLayer.outputs, outputLayer.errors, activation);
+			executor.template execute<OutputLayerErrorKernel>({ outputLayer.errors.shape(1), outputLayer.errors.shape(0) },
+				target, outputLayer.outputs, outputLayer.errors, activation
+			);
 
-			for (int i = layers.size() - 2; i >= 0; i--) {
+			for (int i = layers.size() - 2; i > 0; i--) {
 				Layer& layer = layers[i];
 				Layer& nextLayer = layers[i + 1];
 
 				Activation activation = layer.type.getActivation();
-				executor.template execute<BackwardLayerKernel>({ layer.errors.shape(1), layer.errors.shape(0) }, nextLayer.weights, nextLayer.errors, layer.errors, layer.inputs, activation);
+				executor.template execute<BackwardLayerKernel>({ layer.errors.shape(1), layer.errors.shape(0) }, 
+					nextLayer.weights, nextLayer.errors, layer.errors, layer.inputs, activation
+				);
 			}
 		}
 
-		GENERIC_KERNEL(UpdateWeightsKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> errors, Matrix3D<float> prevOutputs, float learningRate) {
+		GENERIC_KERNEL(UpdateWeightsAndBiasesKernel) {
+			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> biases, Matrix2D<float> errors, Matrix3D<float> prevOutputs, float learningRate) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 
 				if (index.x >= weights.shape(1) || index.y >= weights.shape(0)) {
 					return;
 				}
 
-				weights(index.y, index.x) += learningRate * errors(index.y, 0) * prevOutputs(0, index.x, 0);
-			}
-		};
-
-		GENERIC_KERNEL(UpdateBiasesKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix2D<float> biases, Matrix2D<float> errors, float learningRate) {
-				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
-
-				if (index.x >= biases.shape(1) || index.y >= biases.shape(0)) {
-					return;
+				for (unsigned int x = 0; x < prevOutputs.shape(1); x++) {
+					weights(index.y, x) += learningRate * errors(index.y, 0) * prevOutputs(0, x, 0);
 				}
 
 				biases(index.y, 0) += learningRate * errors(index.y, 0);
@@ -188,15 +190,12 @@ class Network {
 
 		template <typename Exe>
 		void update(Exe& executor, float learningRate) {
-			for (int i = 0; i < layers.size(); i++) {
+			for (int i = 1; i < layers.size(); i++) {
 				Layer& layer = layers[i];
-
-				if (i > 0) {
-					Layer& previousLayer = layers[i - 1];
-					executor.template execute<UpdateWeightsKernel>({ layer.weights.shape(1), layer.weights.shape(0) }, layer.weights, layer.errors, previousLayer.outputs, learningRate);
-				}
-
-				executor.template execute<UpdateBiasesKernel>({ layer.biases.shape(1), layer.biases.shape(0) }, layer.biases, layer.errors, learningRate);
+				Layer& previousLayer = layers[i - 1];
+				executor.template execute<UpdateWeightsAndBiasesKernel>({ 1, layer.weights.shape(0) },
+					layer.weights, layer.biases, layer.errors, previousLayer.outputs, learningRate
+				);
 			}
 		}
 

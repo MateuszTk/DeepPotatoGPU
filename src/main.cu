@@ -17,7 +17,7 @@ void xorDemo();
 void image();
 
 int main() {
-	xorDemo();
+	image();
 
 	return 0;
 }
@@ -124,7 +124,7 @@ void image() {
 		DenseLayer(3, Activation::Sigmoid)
 		}, canvas.getWidth() * canvas.getHeight());
 
-	srand(time(NULL));
+	srand(8888);
 	network.initialize();
 
 	Matrix3D<float> testInput({ network.getMaximumBatchSize(), 2, 1 });
