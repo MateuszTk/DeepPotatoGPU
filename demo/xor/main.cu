@@ -11,14 +11,6 @@
 
 #include "canvas.hpp"
 
-void xorDemo();
-
-int main() {
-	xorDemo();
-
-	return 0;
-}
-
 std::array<DataSet<float>, 4> data = {{
 	{{ 0, 0 }, { 0 }},
 	{{ 0, 1 }, { 1 }},
@@ -26,8 +18,7 @@ std::array<DataSet<float>, 4> data = {{
 	{{ 1, 1 }, { 0 }}
 }};
 
-void xorDemo() {
-
+int main() {
 	Canvas canvas(400, 400);
 
 	CUDAExecutor exec;
@@ -38,7 +29,7 @@ void xorDemo() {
 			InputLayer(2),
 			DenseLayer(3, Activation::Sigmoid),
 			DenseLayer(1, Activation::Sigmoid)
-		}, 
+		},
 		400 * 400,
 		data.size()
 	);
@@ -47,22 +38,20 @@ void xorDemo() {
 	network.initialize();
 
 	Matrix3D<float> input({ network.getMaximumBatchSize(), 2, 1 });
-
-	Matrix3D<float> trainInput({ network.getMaximumTrainBatchSize(), 2, 1 });
-	Matrix3D<float> trainOutput({ network.getMaximumTrainBatchSize(), 1, 1 });
+	DataSet<float> trainingDataSet({ 0, 0 }, { 0 }, network.getMaximumTrainBatchSize());
 
 	int index = 0;
 	for (DataSet<float>& dataSet : data) {
-		trainInput(index, 0, 0) = dataSet.input(0, 0, 0);
-		trainInput(index, 1, 0) = dataSet.input(0, 1, 0);
-		trainOutput(index, 0, 0) = dataSet.output(0, 0, 0);
+		trainingDataSet.input(index, 0, 0) = dataSet.input(0, 0, 0);
+		trainingDataSet.input(index, 1, 0) = dataSet.input(0, 1, 0);
+		trainingDataSet.output(index, 0, 0) = dataSet.output(0, 0, 0);
 		index++;
 	}
 
 	for (int i = 0; i < 4000; i++) {
-		network.forward(exec, trainInput);
-		network.backward(exec, trainOutput);
-		network.update(exec, 0.5f, trainOutput);
+		network.forward(exec, trainingDataSet.input);
+		network.backward(exec, trainingDataSet.output);
+		network.update(exec, 0.5f, trainingDataSet.output);
 
 		if (i % 100 == 0) {
 			std::cout << "Epoch: " << i << "\n";
@@ -114,4 +103,6 @@ void xorDemo() {
 	}
 
 	timer.stop();
+
+	return 0;
 }

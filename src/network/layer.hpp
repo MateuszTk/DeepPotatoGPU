@@ -55,6 +55,8 @@ struct Layer {
 			errors({ maxTrainBatchSize, type.getNeurons(), 1 }),
 			inputs({ batchSize, type.getNeurons(), 1 }),
 			type(type) {
+
+			outputs.getBuffer().setDirection(BufferDirection::DeviceToHost);
 	
 		}
 

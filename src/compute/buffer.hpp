@@ -23,6 +23,12 @@ enum class Location {
 	Device
 };
 
+enum class BufferDirection {
+	Bidirectional,
+	HostToDevice,
+	DeviceToHost
+};
+
 template <typename T>
 class Buffer {
 
@@ -34,6 +40,7 @@ class Buffer {
 		T* dataDevice = nullptr;
 		unsigned int count = 0;
 		bool isCopy = false;
+		BufferDirection direction = BufferDirection::Bidirectional;
 
 		__host__ void copyToDevice() {
 			#ifdef CUDA_AVAILIABLE
@@ -45,7 +52,7 @@ class Buffer {
 					}
 				}
 
-				if (dirty) {
+				if (dirty && direction != BufferDirection::DeviceToHost) {
 					BUFFER_LOG("Copying data to device (%d bytes)\n", count * sizeof(T));
 
 					if (cudaMemcpy(dataDevice, dataHost, count * sizeof(T), cudaMemcpyHostToDevice) != cudaSuccess) {
@@ -57,7 +64,7 @@ class Buffer {
 
 		__host__ void copyToHost() {
 			#ifdef CUDA_AVAILIABLE
-				if (dataDevice != nullptr) {
+				if (dataDevice != nullptr && direction != BufferDirection::HostToDevice) {
 					BUFFER_LOG("Copying data to host (%d bytes)\n", count * sizeof(T));
 
 					if (cudaMemcpy(dataHost, dataDevice, count * sizeof(T), cudaMemcpyDeviceToHost) != cudaSuccess) {
@@ -185,8 +192,16 @@ class Buffer {
 			return count;
 		}
 
-		bool isBuffer() {
+		__host__ bool isBuffer() {
 			return true;
+		}
+
+		__host__ BufferDirection getDirection() {
+			return direction;
+		}
+
+		__host__ void setDirection(BufferDirection direction) {
+			this->direction = direction;
 		}
 
 		friend class Executor;

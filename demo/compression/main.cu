@@ -13,16 +13,19 @@
 #include "canvas.hpp"
 #include "image.hpp"
 
-void image();
+void initInput(Matrix3D<float>& input, Canvas& canvas) {
+	int index = 0;
 
-int main() {
-	image();
-
-	return 0;
+	for (int y = 0; y < canvas.getHeight(); y++) {
+		for (int x = 0; x < canvas.getWidth(); x++) {
+			input(index, 0, 0) = (float)x / canvas.getWidth();
+			input(index, 1, 0) = (float)y / canvas.getHeight();
+			index++;
+		}
+	}
 }
 
-void image() {
-
+int main() {
 	Image image("data/happybread.png");
 	Canvas canvas(200, 200);
 	Timer timer, timer2;
@@ -35,9 +38,9 @@ void image() {
 			DenseLayer(20, Activation::Sigmoid),
 			DenseLayer(10, Activation::Sigmoid),
 			DenseLayer(3, Activation::Sigmoid)
-		}, 
-		canvas.getWidth() * canvas.getHeight(), 
-		25
+		},
+		canvas.getWidth() * canvas.getHeight(),
+		32
 	);
 
 	srand(time(NULL));
@@ -45,7 +48,10 @@ void image() {
 
 	const int sets = 100;
 	DataSet<float> trainingDataSet({ 0, 0 }, { 0, 0, 0 }, network.getMaximumTrainBatchSize() * sets);
+
 	Matrix3D<float> testInput({ network.getMaximumBatchSize(), 2, 1 });
+	testInput.getBuffer().setDirection(BufferDirection::HostToDevice);
+	initInput(testInput, canvas);
 
 	const int epochs = 1'000'000'000;
 
@@ -71,38 +77,19 @@ void image() {
 			network.update(exec, 0.1f, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
 		}
 
-		if (epoch % (100000 / (25 * sets)) == 0) {
-			std::cout << "Epoch: " << epoch << "\n";
+		if (epoch % (100000 / (network.getMaximumTrainBatchSize() * sets)) == 0) {
+			std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * epoch << "\n";
 			std::cout << " * Training ";
 			timer2.stop();
 			timer2.start();
 
-			int index = 0;
+			network.forward(exec, testInput, network.getMaximumBatchSize());
 
-			for (int y = 0; y < canvas.getHeight(); y++) {
-				for (int x = 0; x < canvas.getWidth(); x++) {
-
-					testInput(index, 0, 0) = (float)x / canvas.getWidth();
-					testInput(index, 1, 0) = (float)y / canvas.getHeight();
-
-					index++;
-
-					if (index == network.getMaximumBatchSize()) {
-
-						network.forward(exec, testInput, network.getMaximumBatchSize());
-
-						int startIdx = x + y * canvas.getWidth() - network.getMaximumBatchSize() + 1;
-
-						for (int i = 0; i < network.getMaximumBatchSize(); i++) {
-							uint8_t colorR = (uint8_t)(network.getOutput()(i, 0, 0) * 255.0f);
-							uint8_t colorG = (uint8_t)(network.getOutput()(i, 1, 0) * 255.0f);
-							uint8_t colorB = (uint8_t)(network.getOutput()(i, 2, 0) * 255.0f);
-							canvas.setPixel(startIdx + i, colorR, colorG, colorB);
-						}
-
-						index = 0;
-					}
-				}
+			for (int i = 0; i < network.getMaximumBatchSize(); i++) {
+				uint8_t colorR = (uint8_t)(network.getOutput()(i, 0, 0) * 255.0f);
+				uint8_t colorG = (uint8_t)(network.getOutput()(i, 1, 0) * 255.0f);
+				uint8_t colorB = (uint8_t)(network.getOutput()(i, 2, 0) * 255.0f);
+				canvas.setPixel(i, colorR, colorG, colorB);
 			}
 
 			canvas.update();
@@ -117,4 +104,6 @@ void image() {
 	}
 
 	timer.stop();
+
+	return 0;
 }
