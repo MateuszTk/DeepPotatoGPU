@@ -14,4 +14,11 @@ struct DataSet {
 		this->input.getBuffer().setDirection(BufferDirection::HostToDevice);
 		this->output.getBuffer().setDirection(BufferDirection::HostToDevice);
 	}
+
+	DataSet(uint32_t inputSize, uint32_t outputSize, uint32_t batchSize = 1)
+		: input({ batchSize, inputSize, 1 }), output({ batchSize, outputSize, 1 }) {
+
+		this->input.getBuffer().setDirection(BufferDirection::HostToDevice);
+		this->output.getBuffer().setDirection(BufferDirection::HostToDevice);
+	}
 };

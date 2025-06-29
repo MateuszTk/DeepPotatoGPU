@@ -79,6 +79,12 @@ void Canvas::setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b) {
 	}
 }
 
+void Canvas::setPixel(float x, float y, uint8_t r, uint8_t g, uint8_t b) {
+	if (x >= 0 && x < 1 && y >= 0 && y < 1) {
+		setPixel((int)(x * width), (int)(y * height), r, g, b);
+	}
+}
+
 bool Canvas::frame() {
 	#ifdef _WIN32
 		MSG msg;

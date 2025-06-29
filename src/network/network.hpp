@@ -107,7 +107,7 @@ class Network {
 				batchSize = input.shape(0);
 			}
 
-			if (input.shape(0) > layers[0].outputs.shape(0)) {
+			if (batchSize > layers[0].outputs.shape(0)) {
 				throw std::invalid_argument("Input batch size must be no greater than the specified maximum network batch size");
 			}
 
