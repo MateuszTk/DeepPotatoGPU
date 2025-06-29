@@ -1,13 +1,9 @@
 ﻿
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.26)
+include(CheckLanguage)
 
-if(NOT DEFINED CMAKE_CUDA_COMPILER OR NOT EXISTS ${CMAKE_CUDA_COMPILER})
-    set(ENABLE_CUDA FALSE)
-else()
-    set(ENABLE_CUDA TRUE)
-endif()
-
-if (ENABLE_CUDA)
+check_language(CUDA)
+if (CMAKE_CUDA_COMPILER)
 	project("DeepPotatoGPU" LANGUAGES CXX CUDA)
 else()
 	project("DeepPotatoGPU" LANGUAGES CXX)
