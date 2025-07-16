@@ -4,7 +4,7 @@
 #### Available demos (targets)
 - **xor_demo**: A simple neural network that learns the XOR function.
 - **compression_demo**: A neural network that learns the image.
-- **digits_demo**: A neural network that learns the MNIST dataset. (WIP)
+- **digits_demo**: A neural network that learns the MNIST dataset.
 
 #### Building the demos
 ```bash

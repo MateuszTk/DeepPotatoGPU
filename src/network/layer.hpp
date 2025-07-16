@@ -59,5 +59,4 @@ struct Layer {
 			outputs.getBuffer().setDirection(BufferDirection::DeviceToHost);
 	
 		}
-
 };

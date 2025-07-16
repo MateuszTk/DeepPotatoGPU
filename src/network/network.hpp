@@ -31,13 +31,19 @@ class Network {
 		uint32_t maxBatchSize;
 		uint32_t maxTrainBatchSize;
 
-		void initRandom(Matrix2D<float>& matrix) {
+		float randomNormalizedFloat() {
+			float random = ((float)(rand() % RAND_MAX)) / (float)RAND_MAX;
+			float nr = random * 2.0f - 1.0f;
+			return nr;
+		}
+
+		/*void initRandom(Matrix2D<float>& matrix) {
 			for (unsigned int y = 0; y < matrix.shape(0); y++) {
 				for (unsigned int x = 0; x < matrix.shape(1); x++) {
 					matrix(y, x) = (rand() / (float)RAND_MAX) * 2.0f - 1.0f;
 				}
 			}
-		}
+		}*/
 
 	public:
 
@@ -60,9 +66,24 @@ class Network {
 		virtual ~Network() = default;
 
 		void initialize() {
-			for (Layer& layer : layers) {
+			/*for (Layer& layer : layers) {
 				initRandom(layer.weights);
 				initRandom(layer.biases);
+			}*/
+			int iLayer = 0;
+			for (Layer& layer : layers) {
+				if (iLayer++ == 0) continue;
+				
+				for (int i = 0; i < layer.weights.shape(1); i++) {
+					layers[iLayer - 2].biases(i, 0) = randomNormalizedFloat();
+					for (int j = 0; j < layer.weights.shape(0); j++) {
+						layer.weights(j, i) = randomNormalizedFloat();
+					}
+				}
+				//std::cout << layer.weights;
+			}
+			for (int i = 0; i < layers.back().biases.shape(0); i++) {
+				layers.back().biases(i, 0) = randomNormalizedFloat();
 			}
 		}
 
@@ -89,14 +110,14 @@ class Network {
 				float output = (weights.shape(1) > 0) ? 0.0f : currentInputs(index.z, index.y, 0);
 
 				for (unsigned int i = 0; i < weights.shape(1); i++) {
-					output += weights(index.y, i) * currentInputs(index.z, i, index.x);
+					output += weights(index.y, i) * currentInputs(index.z, i, 0);
 				}
 
 				// If is first layer, the biases are empty and the input should be forwarded directly to the output
 				output += (weights.shape(1) > 0) ? biases(index.y, 0) : 0.0f;
 
-				inputs(index.z, index.y, index.x) = output;
-				outputs(index.z, index.y, index.x) = activate(output, activation);
+				inputs(index.z, index.y, 0) = output;
+				outputs(index.z, index.y, 0) = activate(output, activation);
 			}
 		};
 
@@ -116,7 +137,7 @@ class Network {
 			}
 
 			Activation activation = layers[0].type.getActivation();
-			executor.template execute<ForwardLayerKernel>({ layers[0].outputs.shape(2), layers[0].outputs.shape(1), batchSize },
+			executor.template execute<ForwardLayerKernel>({ 1, layers[0].outputs.shape(1), batchSize },
 				layers[0].weights, layers[0].biases, layers[0].inputs, input, layers[0].outputs, activation, offset
 			);
 			
@@ -126,7 +147,7 @@ class Network {
 				Layer& layer = layers[i];
 
 				Activation activation = layer.type.getActivation();
-				executor.template execute<ForwardLayerKernel>({ layer.outputs.shape(2), layer.outputs.shape(1), batchSize },
+				executor.template execute<ForwardLayerKernel>({ 1, layer.outputs.shape(1), batchSize },
 					layer.weights, layer.biases, layer.inputs, currentInput, layer.outputs, activation, offset
 				);
 
@@ -135,7 +156,7 @@ class Network {
 		}
 
 		GENERIC_KERNEL(OutputLayerErrorKernel) {
-			GENERIC_KERNEL_ENTRY(Matrix3D<float> target, Matrix3D<float> output, Matrix3D<float> error, Activation activation, uint32_t offset) {
+			GENERIC_KERNEL_ENTRY(Matrix3D<float> target, Matrix3D<float> output, Matrix3D<float> input, Matrix3D<float> error, Activation activation, uint32_t offset) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 				uint3 indexData = index;
 				indexData.z += offset;
@@ -144,7 +165,7 @@ class Network {
 					return;
 				}
 
-				error(index.z, index.y, 0) = (target(indexData.z, index.y, 0) - output(indexData.z, index.y, 0)) * deriverate(output(indexData.z, index.y, 0), activation);
+				error(index.z, index.y, 0) = (target(indexData.z, index.y, 0) - output(indexData.z, index.y, 0)) * deriverate(input(indexData.z, index.y, 0), activation);
 			}
 		};
 
@@ -183,7 +204,7 @@ class Network {
 
 			Activation activation = outputLayer.type.getActivation();
 			executor.template execute<OutputLayerErrorKernel>({ outputLayer.errors.shape(2), outputLayer.errors.shape(1), batchSize },
-				target, outputLayer.outputs, outputLayer.errors, activation, offset
+				target, outputLayer.outputs, outputLayer.inputs, outputLayer.errors, activation, offset
 			);
 
 			for (int i = layers.size() - 2; i > 0; i--) {
@@ -205,12 +226,12 @@ class Network {
 					return;
 				}
 
-				for (unsigned int i = 0; i < updateBatchSize; i++) {
+				for (unsigned int batch = 0; batch < updateBatchSize; batch++) {
 					for (unsigned int x = 0; x < prevOutputs.shape(1); x++) {
-						weights(index.y, x) += learningRate * errors(i, index.y, 0) * prevOutputs(i + offset, x, 0);
+						weights(index.y, x) += learningRate * errors(batch, index.y, 0) * prevOutputs(batch + offset, x, 0);
 					}
 
-					biases(index.y, 0) += learningRate * errors(i, index.y, 0);
+					biases(index.y, 0) += learningRate * errors(batch, index.y, 0);
 				}
 			}
 		};
@@ -224,7 +245,7 @@ class Network {
 			for (int i = 1; i < layers.size(); i++) {
 				Layer& layer = layers[i];
 				Layer& previousLayer = layers[i - 1];
-				executor.template execute<UpdateWeightsAndBiasesKernel>({ 1, batchSize },
+				executor.template execute<UpdateWeightsAndBiasesKernel>({ 1, layer.weights.shape(0) },
 					layer.weights, layer.biases, layer.errors, previousLayer.outputs, learningRate, batchSize, offset
 				);
 			}

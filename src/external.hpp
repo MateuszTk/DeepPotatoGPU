@@ -16,6 +16,7 @@
 #include <thread>
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 
 // CUDA
 #ifdef CUDA_AVAILIABLE
