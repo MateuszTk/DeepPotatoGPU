@@ -37,13 +37,13 @@ class Network {
 			return nr;
 		}
 
-		/*void initRandom(Matrix2D<float>& matrix) {
+		void initRandom(Matrix2D<float>& matrix) {
 			for (unsigned int y = 0; y < matrix.shape(0); y++) {
 				for (unsigned int x = 0; x < matrix.shape(1); x++) {
 					matrix(y, x) = (rand() / (float)RAND_MAX) * 2.0f - 1.0f;
 				}
 			}
-		}*/
+		}
 
 	public:
 
@@ -101,7 +101,7 @@ class Network {
 			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> biases, Matrix3D<float> inputs, Matrix3D<float> currentInputs, Matrix3D<float> outputs, Activation activation, uint32_t offset, uint32_t batchSize) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 
-				if (index.x >= inputs.shape(2) || index.y >= inputs.shape(1) || index.z >= batchSize) {
+				if (index.x >= 1 || index.y >= outputs.shape(1) || index.z >= batchSize) {
 					return;
 				}
 
@@ -158,7 +158,7 @@ class Network {
 			GENERIC_KERNEL_ENTRY(Matrix3D<float> target, Matrix3D<float> output, Matrix3D<float> input, Matrix3D<float> error, Activation activation, uint32_t offset, uint32_t batchSize) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 
-				if (index.x >= error.shape(2) || index.y >= error.shape(1) || index.z >= batchSize) {
+				if (index.x >= 1 || index.y >= error.shape(1) || index.z >= batchSize) {
 					return;
 				}
 
@@ -170,7 +170,7 @@ class Network {
 			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix3D<float> errors, Matrix3D<float> prevErrors, Matrix3D<float> prevOutputs, Activation activation, uint32_t offset, uint32_t batchSize) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 
-				if (index.x >= prevErrors.shape(2) || index.y >= prevErrors.shape(1) || index.z >= batchSize) {
+				if (index.x >= 1 || index.y >= prevErrors.shape(1) || index.z >= batchSize) {
 					return;
 				}
 
@@ -200,7 +200,7 @@ class Network {
 			Layer& outputLayer = layers.back();
 
 			Activation activation = outputLayer.type.getActivation();
-			executor.template execute<OutputLayerErrorKernel>({ outputLayer.errors.shape(2), outputLayer.errors.shape(1), batchSize },
+			executor.template execute<OutputLayerErrorKernel>({ 1, outputLayer.errors.shape(1), batchSize },
 				target, outputLayer.outputs, outputLayer.inputs, outputLayer.errors, activation, offset, batchSize
 			);
 
@@ -209,7 +209,7 @@ class Network {
 				Layer& nextLayer = layers[i + 1];
 
 				Activation activation = layer.type.getActivation();
-				executor.template execute<BackwardLayerKernel>({ layer.errors.shape(2), layer.errors.shape(1), batchSize },
+				executor.template execute<BackwardLayerKernel>({ 1, layer.errors.shape(1), batchSize },
 					nextLayer.weights, nextLayer.errors, layer.errors, layer.inputs, activation, offset, batchSize
 				);
 			}
@@ -219,7 +219,7 @@ class Network {
 			GENERIC_KERNEL_ENTRY(Matrix2D<float> weights, Matrix2D<float> biases, Matrix3D<float> errors, Matrix3D<float> prevOutputs, float learningRate, unsigned int updateBatchSize, uint32_t offset) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 
-				if (index.x >= weights.shape(1) || index.y >= weights.shape(0)) {
+				if (index.x >= 1 || index.y >= weights.shape(0)) {
 					return;
 				}
 

@@ -85,6 +85,12 @@ class Matrix {
 			}
 		}
 
+		__host__ Matrix(Matrix&& other) : buffer(std::move(other.buffer)) {
+			for (unsigned int i = 0; i < nDim; i++) {
+				this->dimensions[i] = other.dimensions[i];
+			}
+		}
+
 		__host__ __device__ Matrix(const Matrix& other) : buffer(other.buffer) {
 			*this = other;
 		}

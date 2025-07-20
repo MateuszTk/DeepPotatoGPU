@@ -19,6 +19,9 @@ else()
 	project("digits_demo" LANGUAGES CXX)
 endif()
 
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xptxas -v")
+# -fno-fast-math --fmad=false"
+
 if (ENABLE_CUDA)
 	# Enable CUDA debugging if debug build
 	if (CMAKE_BUILD_TYPE MATCHES Debug)

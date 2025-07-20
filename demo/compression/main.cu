@@ -40,13 +40,13 @@ int main() {
 			DenseLayer(3, Activation::Sigmoid)
 		},
 		canvas.getWidth() * canvas.getHeight(),
-		32
+		30
 	);
 
 	srand(time(NULL));
 	network.initialize();
 
-	const int sets = 100;
+	const int sets = 1000;
 	DataSet<float> trainingDataSet({ 0, 0 }, { 0, 0, 0 }, network.getMaximumTrainBatchSize() * sets);
 
 	Matrix3D<float> testInput({ network.getMaximumBatchSize(), 2, 1 });
@@ -54,6 +54,7 @@ int main() {
 	initInput(testInput, canvas);
 
 	const int epochs = 1'000'000'000;
+	int lastEpoch = 0;
 
 	for (int epoch = 0; epoch < epochs; epoch++) {
 		for (int set = 0; set < sets; set++) {
@@ -78,9 +79,12 @@ int main() {
 		}
 
 		if (epoch % (100000 / (network.getMaximumTrainBatchSize() * sets)) == 0) {
-			std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * epoch << "\n";
+			auto elapsed = timer2.stop();
+			std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * epoch << ", samples per second: "
+				<< (sets * network.getMaximumTrainBatchSize() * (epoch - lastEpoch)) / elapsed << "\n";
 			std::cout << " * Training ";
-			timer2.stop();
+			lastEpoch = epoch;
+			
 			timer2.start();
 
 			network.forward(exec, testInput, network.getMaximumBatchSize());

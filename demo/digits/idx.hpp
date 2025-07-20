@@ -52,7 +52,7 @@ namespace IDX {
 		return value;
 	}
 
-	IDX_Data import(const char* path) {
+	IDX_Data import(const std::string& path) {
 		IDX_Data data;
 		std::ifstream file(path, std::ios::binary);
 		if (!file.is_open()) {

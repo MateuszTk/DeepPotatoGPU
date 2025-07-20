@@ -106,6 +106,19 @@ class Buffer {
 			*this = other;
 		}
 
+		__host__ Buffer(Buffer&& other) noexcept {
+			this->count = other.count;
+			this->dirty = other.dirty;
+			this->dataDevice = other.dataDevice;
+			this->dataHost = other.dataHost;
+			this->location = other.location;
+			this->direction = other.direction;
+			this->isCopy = this->isCopy;
+			other.dataDevice = nullptr;
+			other.dataHost = nullptr;
+			other.location = nullptr;
+		}
+
 		__host__ __device__ ~Buffer() {
 			#ifndef __CUDA_ARCH__
 				if (!isCopy) {
@@ -118,7 +131,9 @@ class Buffer {
 						delete[] dataHost;
 					}
 
-					delete location;
+					if (location != nullptr) {
+						delete location;
+					}
 				}
 			#endif
 		}
@@ -129,6 +144,7 @@ class Buffer {
 			this->dataDevice = other.dataDevice;
 			this->dataHost = other.dataHost;
 			this->location = other.location;
+			this->direction = other.direction;
 			this->isCopy = true;
 
 			return *this;
