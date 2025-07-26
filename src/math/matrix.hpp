@@ -5,6 +5,8 @@
 #include "compute/buffer.hpp"
 #include "compute/generic.hpp"
 #include "compute/executor.hpp"
+#include "compute/cpu.hpp"
+#include "compute/cuda.hpp"
 
 template <typename T, unsigned int nDim>
 class Matrix;
@@ -17,6 +19,10 @@ using Matrix2D = Matrix<T, 2>;
 
 template <typename T>
 using Matrix3D = Matrix<T, 3>;
+
+#define WMMA_M 16
+#define WMMA_N 16
+#define WMMA_K 16
 
 template <typename T, unsigned int nDim>
 class Matrix {
@@ -153,7 +159,6 @@ class Matrix {
 		* Math operations
 		*/
 
-		template <bool transposeA = false>
 		GENERIC_KERNEL(MatrixMultiplyKernel) {
 			GENERIC_KERNEL_ENTRY(Matrix2D<T> matA, Matrix2D<T> matB, Matrix2D<T> matC) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
@@ -162,47 +167,85 @@ class Matrix {
 					return;
 				}
 
-				if constexpr (transposeA) {
-					unsigned int aRows = matA.shape(0);
+				unsigned int aCols = matA.shape(1);
 
-					T sum = 0;
+				T sum = 0;
 
-					for (unsigned int i = 0; i < aRows; i++) {
-						sum += matA(i, index.y) * matB(i, index.x);
-					}
-
-					matC(index.y, index.x) = sum;
+				for (unsigned int i = 0; i < aCols; i++) {
+					sum += matA(index.y, i) * matB(i, index.x);
 				}
-				else {
-					unsigned int aCols = matA.shape(1);
 
-					T sum = 0;
-
-					for (unsigned int i = 0; i < aCols; i++) {
-						sum += matA(index.y, i) * matB(i, index.x);
-					}
-
-					matC(index.y, index.x) = sum;
-				}
+				matC(index.y, index.x) = sum;
 			}
 		};
 
-		template <typename Exe>
-		__host__ static void multiply(Exe& executor, Matrix2D<T>& matA, Matrix2D<T>& matB, Matrix2D<T>& matC, bool transposeA = false) {
-			if (transposeA) {
-				if (matA.shape(0) != matB.shape(0) || matA.shape(1) != matC.shape(0) || matB.shape(1) != matC.shape(1)) {
-					throw std::invalid_argument("Matrix dimensions do not match");
+		__host__ static void multiply(CUDAExecutor& executor, Matrix2D<T>& matA, Matrix2D<T>& matB, Matrix2D<T>& matC) {
+			if (matA.shape(1) != matB.shape(0) || matA.shape(0) != matC.shape(0) || matB.shape(1) != matC.shape(1)) {
+				throw std::invalid_argument("Matrix dimensions do not match");
+			}
+
+			executor.execute<MatrixMultiplyKernel>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
+		}
+
+		GENERIC_KERNEL(MatrixMultiplyKernelWMMA) {
+			__device__ void operator()(Matrix2D<half> matA, Matrix2D<half> matB, Matrix2D<float> matC) {
+				int tileM = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
+				int tileN = blockIdx.y;
+
+				int N = matB.shape(1);
+				int K = matA.shape(1);
+
+				wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
+				wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
+				wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> c_frag;
+
+				wmma::fill_fragment(c_frag, 0.0f);
+
+				for (int tileK = 0; tileK < K / WMMA_K; tileK++) {
+					const half* tile_a = &matA(tileM * WMMA_M, tileK * WMMA_K);
+					const half* tile_b = &matB(tileK * WMMA_K, tileN * WMMA_N);
+
+					wmma::load_matrix_sync(a_frag, tile_a, K);
+					wmma::load_matrix_sync(b_frag, tile_b, N);
+
+					wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
 				}
 
-				executor.template execute<MatrixMultiplyKernel<true>>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
+				float* c_tile = &matC(tileM * WMMA_M, tileN * WMMA_N);
+				wmma::store_matrix_sync(c_tile, c_frag, N, wmma::mem_row_major);
 			}
-			else {
-				if (matA.shape(1) != matB.shape(0) || matA.shape(0) != matC.shape(0) || matB.shape(1) != matC.shape(1)) {
-					throw std::invalid_argument("Matrix dimensions do not match");
-				}
+		};
 
-				executor.template execute<MatrixMultiplyKernel<false>>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
+		__host__ __device__ int padding(int value, int multiple) {
+			return (value + multiple - 1) / multiple * multiple;
+		}
+
+		__host__ static void multiplyWMMA(CUDAExecutor& executor, Matrix2D<half>& matA, Matrix2D<half>& matB, Matrix2D<float>& matC) {
+			if (matA.shape(1) != matB.shape(0) || matA.shape(0) != matC.shape(0) || matB.shape(1) != matC.shape(1)) {
+				throw std::invalid_argument("Matrix dimensions do not match");
 			}
+			if (matA.shape(1) % 16 != 0 || matB.shape(0) % 16 != 0 || matC.shape(1) % 16 != 0 || matC.shape(0) % 16 != 0) {
+				throw std::invalid_argument("Matrix dimensions must be multiples of 16 for WMMA");
+			}
+
+			const int matrixM = matA.shape(0);
+			const int matrixN = matB.shape(1);
+			const int matrixK = matA.shape(1);
+
+			int warpSize = 0;
+			cudaDeviceGetAttribute(&warpSize, cudaDevAttrWarpSize, 0);
+
+			// TODO: Launch more warps per block
+			dim3 threadsPerBlock(warpSize, 1, 1);
+			dim3 blocksPerGrid(
+				matrixM / WMMA_M,
+				matrixN / WMMA_N,
+				1
+			);
+
+			executor.executeCustom<MatrixMultiplyKernelWMMA>(blocksPerGrid, threadsPerBlock,
+				matA, matB, matC
+			);
 		}
 
 		GENERIC_KERNEL(MatrixScalarMultiplyKernel) {

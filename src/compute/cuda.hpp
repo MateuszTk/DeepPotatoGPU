@@ -47,18 +47,6 @@ class CUDAExecutor : public Executor {
 
 		template <typename Kernel, typename... Args>
 		void execute(dim3 threads, Args&... args) {
-			Kernel kernel{};
-
-			([&](auto& buffer) {
-				if constexpr (IsBuffer<decltype(buffer)>) {
-					buffer.transitionLocation(Location::Device);
-				}
-
-				if constexpr (ContainsBuffer<decltype(buffer)>) {
-					buffer.getBuffer().transitionLocation(Location::Device);
-				}
-			}(args), ...);
-
 			unsigned int maxThreads = prop.maxThreadsPerBlock;
 			dim3 maxBlockDim = { (unsigned int)prop.maxThreadsDim[0], (unsigned int)prop.maxThreadsDim[1], (unsigned int)prop.maxThreadsDim[2] };
 			dim3 threadsPerBlock;
@@ -77,7 +65,29 @@ class CUDAExecutor : public Executor {
 			EXECUTOR_CUDA_LOG(" *  Threads per block: %d, %d, %d\n", threadsPerBlock.x, threadsPerBlock.y, threadsPerBlock.z);
 			EXECUTOR_CUDA_LOG(" *  Blocks:            %d, %d, %d\n", numBlocks.x, numBlocks.y, numBlocks.z);
 
-			run<<<numBlocks, threadsPerBlock>>>(kernel, args...);
+			executeCustom<Kernel>(numBlocks, threadsPerBlock, args...);
+		}
+
+		template <typename Kernel, typename... Args>
+		void executeCustom(dim3 blocks, dim3 threads, Args&... args) {
+			Kernel kernel{};
+
+			([&](auto& buffer) {
+				if constexpr (IsBuffer<decltype(buffer)>) {
+					buffer.transitionLocation(Location::Device);
+				}
+
+				if constexpr (ContainsBuffer<decltype(buffer)>) {
+					buffer.getBuffer().transitionLocation(Location::Device);
+				}
+			}(args), ...);
+
+			EXECUTOR_CUDA_LOG("Launching CUDA kernel with arguments: %s\n", ARGS_TO_STRING(args));
+			EXECUTOR_CUDA_LOG(" *  Launching threads: %d, %d, %d\n", threads.x * blocks.x, threads.y * blocks.y, threads.z * blocks.z);
+			EXECUTOR_CUDA_LOG(" *  Threads per block: %d, %d, %d\n", threads.x, threads.y, threads.z);
+			EXECUTOR_CUDA_LOG(" *  Blocks:            %d, %d, %d\n", blocks.x, blocks.y, blocks.z);
+
+			run<<<blocks, threads >>>(kernel, args...);
 
 			if (cudaGetLastError() != cudaSuccess) {
 				std::string message = "Failed to launch CUDA kernel: ";

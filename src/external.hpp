@@ -22,6 +22,9 @@
 #ifdef CUDA_AVAILIABLE
     #include "cuda_runtime.h"
     #include "device_launch_parameters.h"
+    #include <cuda.h>
+    #include <mma.h>
+    using namespace nvcuda;
 #else
     struct uint3 {
         unsigned int x, y, z;
