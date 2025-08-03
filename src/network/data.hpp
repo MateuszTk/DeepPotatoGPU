@@ -5,18 +5,18 @@
 
 template <typename T>
 struct DataSet {
-	Matrix3D<T> input;
-	Matrix3D<T> output;
+	Matrix2D<T> input;
+	Matrix2D<T> output;
 
 	DataSet(const std::initializer_list<T>& input, const std::initializer_list<T>& output, uint32_t batchSize = 1)
-		: input({ batchSize, (unsigned int)input.size(), 1 }, input), output({ batchSize, (unsigned int)output.size(), 1 }, output) {
+		: input({ batchSize, (unsigned int)input.size() }, input), output({ batchSize, (unsigned int)output.size()}, output) {
 
 		this->input.getBuffer().setDirection(BufferDirection::HostToDevice);
 		this->output.getBuffer().setDirection(BufferDirection::HostToDevice);
 	}
 
 	DataSet(uint32_t inputSize, uint32_t outputSize, uint32_t batchSize = 1)
-		: input({ batchSize, inputSize, 1 }), output({ batchSize, outputSize, 1 }) {
+		: input({ batchSize, inputSize }), output({ batchSize, outputSize }) {
 
 		this->input.getBuffer().setDirection(BufferDirection::HostToDevice);
 		this->output.getBuffer().setDirection(BufferDirection::HostToDevice);

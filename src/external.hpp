@@ -55,6 +55,9 @@ __host__ __device__ uint3 operator*(const uint3& a, const uint3& b) {
     return { a.x * b.x, a.y * b.y, a.z * b.z };
 }
 
+#define USE_WMMA 1
+using lowp_t = half;
+
 // Options
 #define BUFFER_DEBUG_ON 0
 #define EXECUTOR_DEBUG_ON 0

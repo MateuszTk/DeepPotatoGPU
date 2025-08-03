@@ -13,13 +13,13 @@
 #include "canvas.hpp"
 #include "image.hpp"
 
-void initInput(Matrix3D<float>& input, Canvas& canvas) {
+void initInput(Matrix2D<float>& input, Canvas& canvas) {
 	int index = 0;
 
 	for (int y = 0; y < canvas.getHeight(); y++) {
 		for (int x = 0; x < canvas.getWidth(); x++) {
-			input(index, 0, 0) = (float)x / canvas.getWidth();
-			input(index, 1, 0) = (float)y / canvas.getHeight();
+			input(index, 0) = (float)x / canvas.getWidth();
+			input(index, 1) = (float)y / canvas.getHeight();
 			index++;
 		}
 	}
@@ -49,7 +49,7 @@ int main() {
 	const int sets = 1000;
 	DataSet<float> trainingDataSet({ 0, 0 }, { 0, 0, 0 }, network.getMaximumTrainBatchSize() * sets);
 
-	Matrix3D<float> testInput({ network.getMaximumBatchSize(), 2, 1 });
+	Matrix2D<float> testInput({ network.getMaximumBatchSize(), 2 });
 	testInput.getBuffer().setDirection(BufferDirection::HostToDevice);
 	initInput(testInput, canvas);
 
@@ -61,14 +61,14 @@ int main() {
 			for (int i = 0; i < network.getMaximumTrainBatchSize(); i++) {
 				int index = i + set * network.getMaximumTrainBatchSize();
 
-				trainingDataSet.input(index, 0, 0) = (rand() / (float)RAND_MAX);
-				trainingDataSet.input(index, 1, 0) = (rand() / (float)RAND_MAX);
+				trainingDataSet.input(index, 0) = (rand() / (float)RAND_MAX);
+				trainingDataSet.input(index, 1) = (rand() / (float)RAND_MAX);
 
-				uint3 pixel = image.getPixel(trainingDataSet.input(index, 0, 0), trainingDataSet.input(index, 1, 0));
+				uint3 pixel = image.getPixel(trainingDataSet.input(index, 0), trainingDataSet.input(index, 1));
 
-				trainingDataSet.output(index, 0, 0) = pixel.x / 255.0f;
-				trainingDataSet.output(index, 1, 0) = pixel.y / 255.0f;
-				trainingDataSet.output(index, 2, 0) = pixel.z / 255.0f;
+				trainingDataSet.output(index, 0) = pixel.x / 255.0f;
+				trainingDataSet.output(index, 1) = pixel.y / 255.0f;
+				trainingDataSet.output(index, 2) = pixel.z / 255.0f;
 			}
 		}
 
@@ -90,9 +90,9 @@ int main() {
 			network.forward(exec, testInput, network.getMaximumBatchSize());
 
 			for (int i = 0; i < network.getMaximumBatchSize(); i++) {
-				uint8_t colorR = (uint8_t)(network.getOutput()(i, 0, 0) * 255.0f);
-				uint8_t colorG = (uint8_t)(network.getOutput()(i, 1, 0) * 255.0f);
-				uint8_t colorB = (uint8_t)(network.getOutput()(i, 2, 0) * 255.0f);
+				uint8_t colorR = (uint8_t)(static_cast<float>(network.getOutput()(i, 0)) * 255.0f);
+				uint8_t colorG = (uint8_t)(static_cast<float>(network.getOutput()(i, 1)) * 255.0f);
+				uint8_t colorB = (uint8_t)(static_cast<float>(network.getOutput()(i, 2)) * 255.0f);
 				canvas.setPixel(i, colorR, colorG, colorB);
 			}
 

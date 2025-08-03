@@ -11,12 +11,12 @@
 
 #include "canvas.hpp"
 
-std::array<DataSet<float>, 4> data = {{
+std::array<DataSet<float>, 4> data = { {
 	{{ 0, 0 }, { 0 }},
 	{{ 0, 1 }, { 1 }},
 	{{ 1, 0 }, { 1 }},
 	{{ 1, 1 }, { 0 }}
-}};
+} };
 
 int main() {
 	Canvas canvas(400, 400);
@@ -34,17 +34,17 @@ int main() {
 		data.size()
 	);
 
-	srand(time(NULL));
+	srand(8888);
 	network.initialize();
 
-	Matrix3D<float> input({ network.getMaximumBatchSize(), 2, 1 });
+	Matrix2D<float> input({ network.getMaximumBatchSize(), 2 });
 	DataSet<float> trainingDataSet({ 0, 0 }, { 0 }, network.getMaximumTrainBatchSize());
 
 	int index = 0;
 	for (DataSet<float>& dataSet : data) {
-		trainingDataSet.input(index, 0, 0) = dataSet.input(0, 0, 0);
-		trainingDataSet.input(index, 1, 0) = dataSet.input(0, 1, 0);
-		trainingDataSet.output(index, 0, 0) = dataSet.output(0, 0, 0);
+		trainingDataSet.input(index, 0) = dataSet.input(0, 0);
+		trainingDataSet.input(index, 1) = dataSet.input(0, 1);
+		trainingDataSet.output(index, 0) = dataSet.output(0, 0);
 		index++;
 	}
 
@@ -76,7 +76,7 @@ int main() {
 						int startIdx = x + y * canvas.getWidth() - network.getMaximumBatchSize() + 1;
 
 						for (int i = 0; i < network.getMaximumBatchSize(); i++) {
-							uint8_t color = (uint8_t)(network.getOutput()(i, 0, 0) * 255.0f);
+							uint8_t color = (uint8_t)(static_cast<float>(network.getOutput()(i, 0)) * 255.0f);
 							canvas.setPixel(startIdx + i, color, color, color);
 						}
 
@@ -99,7 +99,7 @@ int main() {
 
 	for (DataSet<float>& dataSet : data) {
 		network.forward(exec, dataSet.input);
-		std::cout << "Input: " << dataSet.input << " Output: " << network.getOutput()(0, 0, 0) << "\n";
+		std::cout << "Input: " << dataSet.input << " Output: " << static_cast<float>(network.getOutput()(0, 0)) << "\n";
 	}
 
 	timer.stop();

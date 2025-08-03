@@ -31,6 +31,7 @@ class Matrix {
 
 		Buffer<T> buffer;
 		unsigned int dimensions[nDim];
+		unsigned int dataDimensions[nDim];
 
 		template <typename... Args>
 		__host__ __device__ inline const auto getIndex(Args... args) const {
@@ -40,7 +41,8 @@ class Matrix {
 
 			#if !defined NDEBUG && !defined __CUDA_ARCH__
 			for (int i = 0; i < argNDim; i++) {
-				if (argsArr[i] >= dimensions[i]) {
+				// TODO: add non-data dimension checks
+				if (argsArr[i] >= dataDimensions[i]) {
 					throw std::out_of_range("Index out of range");
 				}
 			}
@@ -52,19 +54,39 @@ class Matrix {
 			constexpr int argDiff = nDim - argNDim;
 			if constexpr (argNDim < nDim) {
 				for (int i = nDim - 1; i >= argNDim; i--) {
-					multi *= dimensions[i];
+					multi *= dataDimensions[i];
 				}
 			}
 
 			for (int i = argNDim - 1; i >= 0; i--) {
 				index += argsArr[i] * multi;
-				multi *= dimensions[i];
+				multi *= dataDimensions[i];
 			}
 
 			return index;
 		}
 
+		__host__ __device__ static int padding(int value, int multiple) {
+			return (value + multiple - 1) / multiple * multiple;
+		}
+
+		__host__ __device__ static int getPaddingForDim(int value, int dim) {
+			#if !defined NDEBUG && !defined __CUDA_ARCH__
+			if (dim >= nDim) {
+				throw std::out_of_range("Index out of range");
+			}
+			#endif
+			#if USE_WMMA == 1
+			const int paddings[] = { WMMA_M, WMMA_N, WMMA_K };
+			return padding(value, paddings[dim]);
+			#else
+			return value;
+			#endif	
+		}
+
 	public:		
+
+		using type = T;
 
 		/**
 		* Creation, destruction, copying
@@ -73,18 +95,20 @@ class Matrix {
 		__host__ Matrix() : buffer() {
 			for (unsigned int i = 0; i < nDim; i++) {
 				this->dimensions[i] = 0;
+				this->dataDimensions[i] = 0;
 			}
 		}
 
 		__host__ Matrix(const std::array<unsigned int, nDim>& dimensions, const std::initializer_list<T>& values = {}) : buffer() {
-			int size = 1;
+			int dataSize = 1;
 
 			for (unsigned int i = 0; i < nDim; i++) {
 				this->dimensions[i] = dimensions[i];
-				size *= dimensions[i];
+				this->dataDimensions[i] = getPaddingForDim(dimensions[i], i);
+				dataSize *= this->dataDimensions[i];
 			}
 
-			this->buffer.resize(size);
+			this->buffer.resize(dataSize);
 
 			if (values.size() > 0) {
 				*this = values;
@@ -94,6 +118,7 @@ class Matrix {
 		__host__ Matrix(Matrix&& other) : buffer(std::move(other.buffer)) {
 			for (unsigned int i = 0; i < nDim; i++) {
 				this->dimensions[i] = other.dimensions[i];
+				this->dataDimensions[i] = other.dataDimensions[i];
 			}
 		}
 
@@ -106,6 +131,7 @@ class Matrix {
 
 			for (unsigned int i = 0; i < nDim; i++) {
 				this->dimensions[i] = other.dimensions[i];
+				this->dataDimensions[i] = other.dataDimensions[i];
 			}
 
 			return *this;
@@ -192,8 +218,8 @@ class Matrix {
 				int tileM = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
 				int tileN = blockIdx.y;
 
-				int N = matB.shape(1);
-				int K = matA.shape(1);
+				int N = matB.dataShape(1);
+				int K = matA.dataShape(1);
 
 				wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
 				wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
@@ -216,34 +242,36 @@ class Matrix {
 			}
 		};
 
-		__host__ __device__ int padding(int value, int multiple) {
-			return (value + multiple - 1) / multiple * multiple;
+		__host__ static LaunchParams getWMMALaunchSize(int matrixM, int matrixN) {
+			matrixM = getPaddingForDim(matrixM, 0);
+			matrixN = getPaddingForDim(matrixN, 1);
+
+			// TODO: move this to a more appropriate place to avoid multiple calls
+			int warpSize = 0;
+			cudaDeviceGetAttribute(&warpSize, cudaDevAttrWarpSize, 0);
+
+			LaunchParams launchParams;
+			launchParams.blocks = { (uint32_t)matrixM / WMMA_M, (uint32_t)matrixN / WMMA_N, 1 };
+			launchParams.threads = { (uint32_t)warpSize, 1, 1 }; // TODO: Launch more warps per block
+
+			return launchParams;
 		}
 
 		__host__ static void multiplyWMMA(CUDAExecutor& executor, Matrix2D<half>& matA, Matrix2D<half>& matB, Matrix2D<float>& matC) {
 			if (matA.shape(1) != matB.shape(0) || matA.shape(0) != matC.shape(0) || matB.shape(1) != matC.shape(1)) {
 				throw std::invalid_argument("Matrix dimensions do not match");
 			}
-			if (matA.shape(1) % 16 != 0 || matB.shape(0) % 16 != 0 || matC.shape(1) % 16 != 0 || matC.shape(0) % 16 != 0) {
+			if (matA.dataShape(1) % 16 != 0 || matB.dataShape(0) % 16 != 0 || matC.dataShape(1) % 16 != 0 || matC.dataShape(0) % 16 != 0) {
 				throw std::invalid_argument("Matrix dimensions must be multiples of 16 for WMMA");
 			}
 
-			const int matrixM = matA.shape(0);
-			const int matrixN = matB.shape(1);
-			const int matrixK = matA.shape(1);
+			const int matrixM = matA.dataShape(0);
+			const int matrixN = matB.dataShape(1);
+			const int matrixK = matA.dataShape(1);
 
-			int warpSize = 0;
-			cudaDeviceGetAttribute(&warpSize, cudaDevAttrWarpSize, 0);
+			LaunchParams launchParams = getWMMALaunchSize(matrixM, matrixN);
 
-			// TODO: Launch more warps per block
-			dim3 threadsPerBlock(warpSize, 1, 1);
-			dim3 blocksPerGrid(
-				matrixM / WMMA_M,
-				matrixN / WMMA_N,
-				1
-			);
-
-			executor.executeCustom<MatrixMultiplyKernelWMMA>(blocksPerGrid, threadsPerBlock,
+			executor.executeParams<MatrixMultiplyKernelWMMA>(launchParams,
 				matA, matB, matC
 			);
 		}
@@ -320,45 +348,59 @@ class Matrix {
 			}
 		}
 
-		__host__ friend std::ostream& operator<<(std::ostream& os, Matrix& matrix) {
+		void print(std::ostream& os, bool full = false) {
 			// print dimensions
 			os << "(";
 			for (unsigned int i = 0; i < nDim; i++) {
-				os << matrix.dimensions[i];
+				os << dimensions[i];
 				if (i < nDim - 1) {
 					os << ", ";
 				}
 			}
 			os << ") ";
 
+			int printShape[nDim];
+			for (unsigned int i = 0; i < nDim; i++) {
+				printShape[i] = full ? dataDimensions[i] : dimensions[i];
+			}
+
 			// print data
 			os << "[";
-			if (nDim == 1) {
-				for (unsigned int i = 0; i < matrix.buffer.size(); i++) {
-					os << matrix.buffer[i];
-					if (i < matrix.buffer.size() - 1) {
+			if constexpr (nDim == 1) {
+				for (unsigned int i = 0; i < printShape[0]; i++) {
+					os << static_cast<float>(operator()(i));
+					if (i < printShape[0] - 1) {
 						os << ", ";
 					}
 				}
 			}
 			else if (nDim >= 2) {
-				for (unsigned int i = 0; i < matrix.buffer.size(); i++) {
-					if (i % matrix.dimensions[1] == 0) {
-						os << "\n   ";
+				for (unsigned int y = 0; y < printShape[0]; y++) {
+					for (unsigned int x = 0; x < printShape[1]; x++) {
+						os << static_cast<float>(operator()(y, x));
+						if (x < printShape[1] - 1) {
+							os << ", ";
+						}
 					}
-					os << matrix.buffer[i];
-					if (i < matrix.buffer.size() - 1) {
-						os << ", ";
+					if (y < printShape[0] - 1) {
+						os << "\n   ";
 					}
 				}
 			}
 			os << "]";
+		}
 
+		__host__ friend std::ostream& operator<<(std::ostream& os, Matrix& matrix) {
+			matrix.print(os);
 			return os;
 		}
 
 		__host__ __device__ unsigned int shape(unsigned int dim) const {
 			return dimensions[dim];
+		}
+
+		__host__ __device__ unsigned int dataShape(unsigned int dim) const {
+			return dataDimensions[dim];
 		}
 
 		Buffer<T>& getBuffer() {
