@@ -127,35 +127,35 @@ int main(int argc, char** argv) {
 
 	for (int epoch = 0; epoch < epochs; epoch++) {
 		for (int set = 0; set < sets; set++) {
-			std::cout << "Forward: ";
 			exec.synchronize();
 			Timer timerf;
 			network.forward(exec, trainingDataSet.input, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
 			exec.synchronize();
-			forwardTotal += timerf.stop();
+			forwardTotal += timerf.stop(false);
 
-			std::cout << "Backward: ";
 			Timer timerb;
 			network.backward(exec, trainingDataSet.output, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
 			exec.synchronize();
-			backwardTotal += timerb.stop();
+			backwardTotal += timerb.stop(false);
 
-			std::cout << "Update: ";
 			Timer timeru;
 			network.update(exec, 0.1f, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
 			exec.synchronize();
-			updateTotal += timeru.stop();
+			updateTotal += timeru.stop(false);
 			iters++;
 
-			std::cout << "Forward time avg: " << forwardTotal / iters * 1000.0 << " ms, "
-				<< "Backward time avg: " << backwardTotal / iters * 1000.0 << " ms, "
-				<< "Update time avg: " << updateTotal / iters * 1000.0 << " ms\n";
+			
 
 			if (set % (sets / 10) == 0) {
 				std::cout << "Epoch: " << epoch << ", Set: " << set << "/" << sets << "\n";
 				auto elapsed = std::chrono::high_resolution_clock::now() - start;
 				std::chrono::duration<double, std::milli> diff = elapsed;
 				std::cout << " * Training speed: " << (set * network.getMaximumTrainBatchSize()) / diff.count() * 1000.0f << " samples/s\n";
+				
+				std::cout << "Forward time avg: " << forwardTotal / iters * 1000.0 << " ms, "
+					<< "Backward time avg: " << backwardTotal / iters * 1000.0 << " ms, "
+					<< "Update time avg: " << updateTotal / iters * 1000.0 << " ms\n";
+
 				if (!tester.test(exec, network, canvas)) {
 					epoch = epochs;
 					break;

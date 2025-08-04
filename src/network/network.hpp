@@ -331,6 +331,25 @@ class Network {
 			GENERIC_KERNEL_ENTRY(Layer::WeightsMat_t weights, Layer::BiasesMat_t biases, Layer::ErrorsMat_t errors, Layer::OutputsMat_t prevOutputs, float learningRate, unsigned int updateBatchSize, uint32_t offset) {
 				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
 
+				if (index.x >= prevOutputs.shape(1) || index.y >= weights.shape(0)) {
+					return;
+				}
+
+				for (unsigned int batch = 0; batch < updateBatchSize; batch++) {
+					float error = learningRate * errors(batch, index.y, 0);
+					weights(index.y, index.x) += error * static_cast<float>(prevOutputs(batch, index.x));
+					if (index.x == 0) {
+						biases(index.y) += error;
+					}
+				}
+			}
+		};
+
+		/*
+		GENERIC_KERNEL(UpdateWeightsAndBiasesKernel) {
+			GENERIC_KERNEL_ENTRY(Layer::WeightsMat_t weights, Layer::BiasesMat_t biases, Layer::ErrorsMat_t errors, Layer::OutputsMat_t prevOutputs, float learningRate, unsigned int updateBatchSize, uint32_t offset) {
+				uint3 index = getThreadIdx() + getBlockIdx() * getBlockDim();
+
 				if (index.x >= 1 || index.y >= weights.shape(0)) {
 					return;
 				}
@@ -340,11 +359,13 @@ class Network {
 					for (unsigned int x = 0; x < prevOutputs.shape(1); x++) {
 						weights(index.y, x) += error * static_cast<float>(prevOutputs(batch, x));
 					}
-
-					biases(index.y) += error;
+						//if (index.x == 0) {
+							biases(index.y) += error;
+						//}
 				}
 			}
 		};
+		*/
 
 		template <typename Exe>
 		void update(Exe& executor, float learningRate, uint32_t batchSize, uint32_t offset = 0) {
@@ -355,7 +376,10 @@ class Network {
 			for (int i = 1; i < layers.size(); i++) {
 				Layer& layer = layers[i];
 				Layer& previousLayer = layers[i - 1];
-				executor.template execute<UpdateWeightsAndBiasesKernel>({ 1, layer.weights.shape(0) },
+				//executor.template execute<UpdateWeightsAndBiasesKernel>({ 1, layer.weights.shape(0) },
+				//	layer.weights, layer.biases, layer.errors, previousLayer.outputs, learningRate, batchSize, offset
+				//);
+				executor.template execute<UpdateWeightsAndBiasesKernel>({ previousLayer.outputs.shape(1), layer.weights.shape(0) },
 					layer.weights, layer.biases, layer.errors, previousLayer.outputs, learningRate, batchSize, offset
 				);
 			}

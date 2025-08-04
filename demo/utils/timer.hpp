@@ -18,10 +18,12 @@ class Timer {
 			startTime = std::chrono::high_resolution_clock::now();
 		}
 
-		double stop() {
+		double stop(bool printTime = true) {
 			auto end = std::chrono::high_resolution_clock::now();
 			auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - startTime);
-			std::cout << "Time: " << duration.count() / 1000.0f << "ms" << std::endl;
+			if (printTime) {
+				std::cout << "Time: " << duration.count() / 1000.0f << "ms" << std::endl;
+			}
 			return duration.count() / 1000000.0;
 		}
 };
