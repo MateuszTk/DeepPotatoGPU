@@ -169,7 +169,7 @@ class Matrix {
 		*/
 
 		template <typename... Args>
-		__host__ __device__ decltype(auto) operator()(Args... args) {
+		__host__ __device__ FORCEINLINE decltype(auto) operator()(Args... args) {
 			constexpr unsigned int argSize = sizeof...(Args);
 			const unsigned int index = getIndex(args...);
 			

@@ -17,6 +17,17 @@
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
+#include <condition_variable>
+#include <mutex>
+#include <queue>
+
+#if defined(_MSC_VER)
+#define FORCEINLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#define FORCEINLINE inline __attribute__((always_inline))
+#else
+#define FORCEINLINE inline
+#endif
 
 // CUDA
 #ifdef CUDA_AVAILIABLE

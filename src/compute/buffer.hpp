@@ -67,7 +67,8 @@ class Buffer {
 				if (dataDevice != nullptr && direction != BufferDirection::HostToDevice) {
 					BUFFER_LOG("Copying data to host (%d bytes)\n", count * sizeof(T));
 
-					if (cudaMemcpy(dataHost, dataDevice, count * sizeof(T), cudaMemcpyDeviceToHost) != cudaSuccess) {
+					auto success = cudaMemcpy(dataHost, dataDevice, count * sizeof(T), cudaMemcpyDeviceToHost);
+					if (success != cudaSuccess) {
 						throw std::runtime_error("Failed to copy data to host");
 					}
 				}
@@ -96,6 +97,8 @@ class Buffer {
 
 			if (count > 0) {
 				this->dataHost = new T[count];
+				// TODO: Initialize dataHost with zeros in more flexible way
+				memset(this->dataHost, 0, count * sizeof(T));
 			}
 			else {
 				this->dataHost = nullptr;
@@ -168,6 +171,8 @@ class Buffer {
 
 			if (count > 0) {
 				this->dataHost = new T[count];
+				//TODO: Initialize dataHost with zeros in more flexible way
+				memset(this->dataHost, 0, count * sizeof(T));
 			}
 			else {
 				this->dataHost = nullptr;
@@ -185,7 +190,7 @@ class Buffer {
 			memcpy(data, dataHost, count * sizeof(T));
 		}
 
-		__host__ __device__ T& operator[](unsigned int index) {
+		__host__ __device__ FORCEINLINE T& operator[](unsigned int index) {
 			#ifdef __CUDA_ARCH__
 				return dataDevice[index];
 			#else

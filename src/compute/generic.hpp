@@ -56,4 +56,4 @@ struct GenericKernel {
 };
 
 #define GENERIC_KERNEL(name) struct name : public GenericKernel
-#define GENERIC_KERNEL_ENTRY __device__ __host__ void operator()
+#define GENERIC_KERNEL_ENTRY __device__ __host__ FORCEINLINE void operator()
