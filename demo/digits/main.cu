@@ -13,12 +13,15 @@
 #include "canvas.hpp"
 #include "idx.hpp"
 
+#define VERBOSE 1
+
 class TestDigits {
 private:
 	IDX::IDX_Data testImages;
 	IDX::IDX_Data testLabels;
 	int testSampleId;
 	std::unique_ptr<Matrix2D<float>> testInput;
+	std::unique_ptr<Matrix2D<float>> fullInput;
 	unsigned int imageSize;
 	int width;
 	int height;
@@ -31,9 +34,20 @@ public:
 		width = testImages.header.sizes[1];
 		height = testImages.header.sizes[2];
 		imageSize = width * height;
+
 		const std::array<unsigned int, 2>& dimensions = { 1, imageSize };
 		testInput = std::make_unique<Matrix2D<float>>(dimensions);
 		testInput->getBuffer().setDirection(BufferDirection::HostToDevice);
+
+		const std::array<unsigned int, 2>& fullDimensions = { testImages.header.sizes[0], imageSize };
+		fullInput = std::make_unique<Matrix2D<float>>(fullDimensions);
+		fullInput->getBuffer().setDirection(BufferDirection::HostToDevice);
+		for (int i = 0; i < testImages.header.sizes[0]; i++) {
+			const uint8_t* image = testImages.data + i * imageSize;
+			for (int j = 0; j < imageSize; j++) {
+				(*fullInput)(i, j) = image[j] / 255.0f;
+			}
+		}
 	}
 
 	template <typename Executor>
@@ -67,8 +81,39 @@ public:
 			}
 		}
 		testSampleId++;
+		if (testSampleId >= testImages.header.sizes[0]) {
+			testSampleId = 0;
+		}
 		canvas.update();
 		return canvas.frame();
+	}
+
+	template <typename Executor>
+	float testAll(Executor& exec, Network& network) {		
+		int correct = 0;
+		for (int input = 0; input < testImages.header.sizes[0]; input += network.getMaximumBatchSize()) {
+			int batchSize = std::min(network.getMaximumBatchSize(), testImages.header.sizes[0] - input);
+			network.forward(exec, *fullInput, batchSize, input);
+			for (int i = 0; i < batchSize; i++) {
+				int testLabel = testLabels.data[input + i];
+				int maxIndex = 0;
+				float maxValue = network.getOutput()(i, 0);
+				for (int j = 1; j < 10; j++) {
+					if (static_cast<float>(network.getOutput()(i, j)) > maxValue) {
+						maxValue = network.getOutput()(i, j);
+						maxIndex = j;
+					}
+				}
+				if (maxIndex == testLabel) {
+					correct++;
+				}
+				//std::cout << "Sample " << (input + i) << ": Label: " << testLabel << ", Predicted: " << maxIndex << '\n';
+			}
+		}
+
+		float accuracy = static_cast<float>(correct) / testImages.header.sizes[0];
+		std::cout << "Test accuracy: " << std::fixed << std::setprecision(2) << (accuracy * 100.0f) << "%\n";
+		return accuracy;
 	}
 };
 
@@ -99,7 +144,8 @@ int main(int argc, char** argv) {
 		30
 	);
 
-	srand(8888);
+	//srand(8888);
+	srand(time(nullptr));
 	network.initialize();
 
 	const int sets = numImages / network.getMaximumTrainBatchSize();
@@ -114,7 +160,7 @@ int main(int argc, char** argv) {
 		trainingDataSet.output(i, trainLabels.data[i]) = 1.0f;
 	}
 
-	const int epochs = 1'000'000'000;
+	const int epochs = 10;
 
 	auto start = std::chrono::high_resolution_clock::now();
 	int lastEpoch = -1;
@@ -142,12 +188,12 @@ int main(int argc, char** argv) {
 			network.update(exec, 0.1f, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
 			exec.synchronize();
 			updateTotal += timeru.stop(false);
-			iters++;
-
-			
+			iters++;			
 
 			if (set % (sets / 10) == 0) {
-				std::cout << "Epoch: " << epoch << ", Set: " << set << "/" << sets << "\n";
+				std::cout << "Epoch: " << epoch << ", Set: " << set << "/" << sets << ", Samples: "
+					<< (set + 1) * network.getMaximumTrainBatchSize() << "/" << sets * network.getMaximumTrainBatchSize() << "\n";
+				#if VERBOSE == 1
 				auto elapsed = std::chrono::high_resolution_clock::now() - start;
 				std::chrono::duration<double, std::milli> diff = elapsed;
 				std::cout << " * Training speed: " << (set * network.getMaximumTrainBatchSize()) / diff.count() * 1000.0f << " samples/s\n";
@@ -160,14 +206,16 @@ int main(int argc, char** argv) {
 					epoch = epochs;
 					break;
 				}
+				#endif
 			}
 		}
 
 		auto end = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double, std::milli> diff = end - start;
-		start = end;
 		std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * (epoch + 1) << "\n";
 		std::cout << " * Training speed: " << (epoch - lastEpoch) * sets * network.getMaximumTrainBatchSize() / diff.count() * 1000.0f << " samples/s\n";
+		tester.testAll(exec, network);
+		start = std::chrono::high_resolution_clock::now();
 		lastEpoch = epoch;
 	}
 
