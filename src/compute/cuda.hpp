@@ -103,6 +103,7 @@ class CUDAExecutor : public Executor {
 			if (error != cudaSuccess) {
 				std::string message = "Failed to synchronize CUDA device: ";
 				message += cudaGetErrorString(error);
+				std::cout << message << std::endl;
 				throw std::runtime_error(message);
 			}
 		}

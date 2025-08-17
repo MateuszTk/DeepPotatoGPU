@@ -41,15 +41,15 @@ struct DenseLayer : public LayerType {
 
 struct Layer {
 
-	using WeightsMat_t = Matrix2D<lowp_t>;
-	//using WeightsLPMat_t = Matrix2D<float>;
+	using WeightsLowMat_t = Matrix2D<lowp_t>;
+	using WeightsMat_t = Matrix2D<float>;
 	using BiasesMat_t = Matrix1D<float>;
 	using OutputsMat_t = Matrix2D<lowp_t>;
 	using ErrorsMat_t = Matrix3D<float>;
 	using InputsMat_t = Matrix2D<float>;
 
 	WeightsMat_t weights;
-	//Matrix2D<lowp_t> weightsLowP;
+	WeightsLowMat_t weightsLow;
 	BiasesMat_t biases;
 	OutputsMat_t outputs;
 	ErrorsMat_t errors;
@@ -58,6 +58,7 @@ struct Layer {
 
 	Layer(const LayerType& type, uint32_t inputSize, uint32_t batchSize, uint32_t maxTrainBatchSize) :
 		weights({ type.getNeurons(), inputSize }),
+		weightsLow({ (std::is_same<float, lowp_t>::value ? 0 : type.getNeurons()), inputSize }),
 		biases({ type.getNeurons() }),
 		outputs({ batchSize, type.getNeurons() }),
 		errors({ maxTrainBatchSize, type.getNeurons(), 1 }),
