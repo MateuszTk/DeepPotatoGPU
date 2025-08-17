@@ -9,8 +9,6 @@
 #define EXECUTOR_CPU_LOG(...)
 #endif
 
-#define WORKER_COUNT 4
-
 class CPUExecutor : public Executor {
 	private:
 
@@ -100,7 +98,7 @@ class CPUExecutor : public Executor {
 
 	public:
 
-		CPUExecutor() : workers(WORKER_COUNT) {};
+		CPUExecutor(uint32_t workerCount = 0) : workers(workerCount) {};
 		virtual ~CPUExecutor() = default;
 
 		template <typename Kernel, typename... Args>
@@ -108,7 +106,7 @@ class CPUExecutor : public Executor {
 			EXECUTOR_CPU_LOG("Launching CPU kernel with arguments: %s\n", ARGS_TO_STRING(args));
 			EXECUTOR_CPU_LOG(" *  Threads per block: %u, %u, %u\n", threadsPerBlock.x, threadsPerBlock.y, threadsPerBlock.z);
 
-			if constexpr (WORKER_COUNT > 1) {
+			if (workers.size() > 1) {
 				EXECUTOR_CPU_LOG(" *  Using %d workers\n", WORKER_COUNT);
 
 				//Timer timerh;

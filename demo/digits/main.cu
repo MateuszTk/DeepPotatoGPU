@@ -13,7 +13,8 @@
 #include "canvas.hpp"
 #include "idx.hpp"
 
-#define VERBOSE 1
+#define VERBOSE 0
+#define TEST_SET 0
 
 class TestDigits {
 private:
@@ -118,106 +119,164 @@ public:
 };
 
 int main(int argc, char** argv) {
-	IDX::IDX_Data trainImages = IDX::import("data/train-images.idx3-ubyte");
-	IDX::printData(trainImages);
-	IDX::IDX_Data trainLabels = IDX::import("data/train-labels.idx1-ubyte");
-	IDX::printData(trainLabels);
+	const std::string logDir = "scale_test/";
+	std::array<uint32_t, 1> workerCounts = { 6 };// <13> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+	std::array<uint32_t, 17> hiddenLayerSizes = { 4, 6, 8, 10, 12, 14, 16, 18, 20, 28, 32, 64, 128, 256, 512, 768, 1024 };
+	const int epochs = 5;
 
-	const int numImages = trainImages.header.sizes[0];
-	const int width = trainImages.header.sizes[1];
-	const int height = trainImages.header.sizes[2];
-	const int imageSize = width * height;
-	TestDigits tester("data/t10k-images.idx3-ubyte", "data/t10k-labels.idx1-ubyte");
+	for (auto cpuWorkerCount : workerCounts) {
+		for (auto hiddenLayerSize : hiddenLayerSizes) {
+			std::cout << "Testing with " << cpuWorkerCount << " CPU workers and hidden layer size " << hiddenLayerSize << '\n';
 
-	Canvas canvas(200, 200);
+			//CPUExecutor exec(cpuWorkerCount);
+			CUDAExecutor exec;
 
-	//CPUExecutor exec;
-	CUDAExecutor exec;
+			for (int testIter = 0; testIter < 1; testIter++) {
+				std::cout << "Test iteration: " << testIter << '\n';
 
-	Network network({
-			InputLayer(imageSize),
-			DenseLayer(128, Activation::Sigmoid),
-			DenseLayer(128, Activation::Sigmoid),
-			DenseLayer(10, Activation::Sigmoid)
-		},
-		30,
-		30
-	);
+				IDX::IDX_Data trainImages = IDX::import("data/train-images.idx3-ubyte");
+				IDX::printData(trainImages);
+				IDX::IDX_Data trainLabels = IDX::import("data/train-labels.idx1-ubyte");
+				IDX::printData(trainLabels);
 
-	//srand(8888);
-	srand(time(nullptr));
-	network.initialize();
+				const int numImages = trainImages.header.sizes[0];
+				const int width = trainImages.header.sizes[1];
+				const int height = trainImages.header.sizes[2];
+				const int imageSize = width * height;
+				TestDigits tester("data/t10k-images.idx3-ubyte", "data/t10k-labels.idx1-ubyte");
 
-	const int sets = numImages / network.getMaximumTrainBatchSize();
+				Canvas canvas(200, 200);
 
-	DataSet<float> trainingDataSet(imageSize, 10, numImages);
-	trainingDataSet.output.fill(0.0f);
-	for (int i = 0; i < numImages; i++) {
-		const uint8_t* image = trainImages.data + i * imageSize;
-		for (int j = 0; j < imageSize; j++) {
-			trainingDataSet.input(i, j) = image[j] / 255.0f;
-		}
-		trainingDataSet.output(i, trainLabels.data[i]) = 1.0f;
-	}
+				Network network({
+						InputLayer(imageSize),
+						DenseLayer(hiddenLayerSize, Activation::Sigmoid),
+						DenseLayer(hiddenLayerSize, Activation::Sigmoid),
+						DenseLayer(10, Activation::Sigmoid)
+					},
+					32,
+					32
+				);
 
-	const int epochs = 10;
-
-	auto start = std::chrono::high_resolution_clock::now();
-	int lastEpoch = -1;
-	int testSampleId = 0;
-
-	double forwardTotal = 0.0;
-	double backwardTotal = 0.0;
-	double updateTotal = 0.0;
-	int iters = 0;
-
-	for (int epoch = 0; epoch < epochs; epoch++) {
-		for (int set = 0; set < sets; set++) {
-			exec.synchronize();
-			Timer timerf;
-			network.forward(exec, trainingDataSet.input, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
-			exec.synchronize();
-			forwardTotal += timerf.stop(false);
-
-			Timer timerb;
-			network.backward(exec, trainingDataSet.output, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
-			exec.synchronize();
-			backwardTotal += timerb.stop(false);
-
-			Timer timeru;
-			network.update(exec, 0.1f, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
-			exec.synchronize();
-			updateTotal += timeru.stop(false);
-			iters++;			
-
-			if (set % (sets / 10) == 0) {
-				std::cout << "Epoch: " << epoch << ", Set: " << set << "/" << sets << ", Samples: "
-					<< (set + 1) * network.getMaximumTrainBatchSize() << "/" << sets * network.getMaximumTrainBatchSize() << "\n";
-				#if VERBOSE == 1
-				auto elapsed = std::chrono::high_resolution_clock::now() - start;
-				std::chrono::duration<double, std::milli> diff = elapsed;
-				std::cout << " * Training speed: " << (set * network.getMaximumTrainBatchSize()) / diff.count() * 1000.0f << " samples/s\n";
-				
-				std::cout << "Forward time avg: " << forwardTotal / iters * 1000.0 << " ms, "
-					<< "Backward time avg: " << backwardTotal / iters * 1000.0 << " ms, "
-					<< "Update time avg: " << updateTotal / iters * 1000.0 << " ms\n";
-
-				if (!tester.test(exec, network, canvas)) {
-					epoch = epochs;
-					break;
+				std::string logName = logDir + "log_digits_";
+				logName += std::to_string(testIter) + "_";
+				for (int i = 0; i < network.getLayerCount(); i++) {
+					logName += std::to_string(network.getLayerType(i).getNeurons()) + "_";
 				}
-				#endif
+				logName += std::to_string(network.getMaximumTrainBatchSize()) + "_";
+				logName += std::to_string(cpuWorkerCount) + "_";
+				logName += std::to_string(TEST_SET) + "_";
+				logName += std::string(typeid(lowp_t).name()) + "_";
+				logName += std::to_string(USE_WMMA) + "_";
+				logName += std::string(typeid(exec).name()) + "_";
+				logName += ".txt";
+				std::cout << "Log file: " << logName << '\n';
+				std::ofstream logFile(logName);
+				if (!logFile.is_open()) {
+					std::cerr << "Error: could not open log file\n";
+					return 1;
+				}
+
+				//srand(8888);
+				srand(time(nullptr));
+				network.initialize();
+
+				const int sets = numImages / network.getMaximumTrainBatchSize();
+
+				DataSet<float> trainingDataSet(imageSize, 10, numImages);
+				trainingDataSet.output.fill(0.0f);
+				for (int i = 0; i < numImages; i++) {
+					const uint8_t* image = trainImages.data + i * imageSize;
+					for (int j = 0; j < imageSize; j++) {
+						trainingDataSet.input(i, j) = image[j] / 255.0f;
+					}
+					trainingDataSet.output(i, trainLabels.data[i]) = 1.0f;
+				}
+
+				int lastEpoch = -1;
+				int testSampleId = 0;
+
+				double forwardTotal = 0.0;
+				double backwardTotal = 0.0;
+				double updateTotal = 0.0;
+				int iters = 0;
+				Timer setTimer;
+				Timer epochTimer;
+				Timer totalTimer;
+
+				Matrix1D<float> lossMat({ network.getMaximumBatchSize() });
+				lossMat.getBuffer().setDirection(BufferDirection::DeviceToHost);
+				float loss = 0.0f;
+
+				for (int epoch = 0; epoch < epochs; epoch++) {
+					for (int set = 0; set < sets; set++) {
+						exec.synchronize();
+						Timer timerf;
+						network.forward(exec, trainingDataSet.input, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
+						exec.synchronize();
+						forwardTotal += timerf.stop(false);
+
+						Timer timerb;
+						network.backward(exec, trainingDataSet.output, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
+						exec.synchronize();
+						backwardTotal += timerb.stop(false);
+
+						Timer timeru;
+						network.update(exec, 0.1f, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
+						exec.synchronize();
+						updateTotal += timeru.stop(false);
+						iters++;
+
+						#if TEST_SET == 1
+						//loss += network.loss(exec, lossMat, trainingDataSet.output, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
+						#endif
+
+						if (set % (sets / 10) == 0) {
+							float diffMs = setTimer.stop(false) * 1000.0f;
+
+							int samplesTotal = (set + 1) * network.getMaximumTrainBatchSize() + epoch * sets * network.getMaximumTrainBatchSize();
+
+							std::cout << "Epoch: " << epoch << ", Set: " << set << "/" << sets << ", Samples: "
+								<< (set + 1) * network.getMaximumTrainBatchSize() << "/" << sets * network.getMaximumTrainBatchSize() << "\n";
+
+							logFile << samplesTotal << " " << totalTimer.stop(false) * 1000.0f << " " << forwardTotal * 1000.0f << " " << backwardTotal * 1000.0f << " " << updateTotal * 1000.0f;
+							#if TEST_SET == 1
+							logFile << " " << tester.testAll(exec, network);
+							logFile << " " << std::fixed << std::setprecision(8) << loss / (sets / 10);
+							std::cout << "Loss: " << std::fixed << std::setprecision(8) << loss / (sets / 10) << "\n";
+							loss = 0.0f;
+							#else
+							logFile << " 0.0 0.0";
+							#endif
+							logFile << "\n";
+
+							#if VERBOSE == 1			
+							std::cout << " * Training speed: " << (set * network.getMaximumTrainBatchSize()) / diff_ms << " samples/s\n";
+
+							std::cout << "Forward time avg: " << forwardTotal / iters * 1000.0 << " ms, "
+								<< "Backward time avg: " << backwardTotal / iters * 1000.0 << " ms, "
+								<< "Update time avg: " << updateTotal / iters * 1000.0 << " ms\n";
+
+							if (!tester.test(exec, network, canvas)) {
+								epoch = epochs;
+								break;
+							}
+							#endif
+
+							setTimer.start();
+						}
+					}
+
+					std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * (epoch + 1) << "\n";
+					std::cout << " * Training speed: " << (epoch - lastEpoch) * sets * network.getMaximumTrainBatchSize() / epochTimer.stop(false) << " samples/s\n";
+					lastEpoch = epoch;
+					epochTimer.start();
+				}
+
+				tester.testAll(exec, network);
+
+				logFile.close();
 			}
 		}
-
-		auto end = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double, std::milli> diff = end - start;
-		std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * (epoch + 1) << "\n";
-		std::cout << " * Training speed: " << (epoch - lastEpoch) * sets * network.getMaximumTrainBatchSize() / diff.count() * 1000.0f << " samples/s\n";
-		tester.testAll(exec, network);
-		start = std::chrono::high_resolution_clock::now();
-		lastEpoch = epoch;
 	}
-
 	return 0;
 }
