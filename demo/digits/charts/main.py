@@ -2,13 +2,56 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 
-def load_time_data(directory, use_wmma, lowp_type, exec_type, threads=-1):
+def parse_filename(filename):
+    #0   1      2 3   4 5 6  7  8 9 10            11 12 
+    #log_digits_0_784_4_4_10_32_6_0_struct __half_1_class CUDAExecutor_
+    parts = filename.split('_')
+    #print(parts)
+    if len(parts) < 13:
+        return None
+    log = parts[0]
+    digits = parts[1]
+    test_iter = int(parts[2])
+    input_layer = int(parts[3])
+    hidden_layer_1 = int(parts[4])
+    hidden_layer_2 = int(parts[5])
+    output_layer = int(parts[6])
+    train_batch = int(parts[7])
+    cpu_workers = int(parts[8])
+    test_set = int(parts[9])
+    lowp_type = parts[10]
+    index_offset = 0
+    if lowp_type == "struct ":
+        lowp_type = "struct __half"
+        index_offset = 2
+    # Check if the lowp_type is 'struct __half' or 'float'
+    use_wmma = int(parts[11 + index_offset])
+    exec_type = parts[12 + index_offset]
+
+    return {
+        "log": log,
+        "digits": digits,
+        "test_iter": test_iter,
+        "input_layer": input_layer,
+        "hidden_layer_1": hidden_layer_1,
+        "hidden_layer_2": hidden_layer_2,
+        "output_layer": output_layer,
+        "train_batch": train_batch,
+        "cpu_workers": cpu_workers,
+        "test_set": test_set,
+        "lowp_type": lowp_type,
+        "use_wmma": use_wmma,
+        "exec_type": exec_type
+    }
+
+def load_time_data(directory, use_wmma, lowp_type, exec_type, threads=-1, hidden_layer_1=-1):
     end_of_filename = f"_0_{lowp_type}_{use_wmma}_{exec_type}_.txt"
     if threads >= 0:
         end_of_filename = f"_{threads}" + end_of_filename
     all_results = []
     for filename in os.listdir(directory):
-        if filename.startswith("log_digits_") and filename.endswith(end_of_filename):
+        properties = parse_filename(filename)
+        if filename.startswith("log_digits_") and filename.endswith(end_of_filename) and (properties["hidden_layer_1"] == hidden_layer_1 or hidden_layer_1 == -1):
             filepath = os.path.join(directory, filename)
             df = pd.read_csv(filepath, sep=" ", header=None)
             df.columns = ["samplesTotal", "diff_ms", "forwardAvg", "backwardAvg", "updateAvg", "testAccuracy", "loss"]
@@ -58,8 +101,24 @@ def load_threading_data():
         print("No threading results found.")
         return None
     return threading_results
-   
 
+def load_scaling_data(directory, use_wmma, lowp_type, exec_type, hidden_layers):
+    all_results = []
+    for hidden_layer_1 in hidden_layers:
+        df = load_time_data(directory, use_wmma, lowp_type, exec_type, hidden_layer_1=hidden_layer_1)
+        if df is not None:
+            all_results.append(df.iloc[-1:])
+    if not all_results:
+        print("No scaling results found.")
+        return None
+    return {
+        "hidden_layers": hidden_layers,
+        "use_wmma": use_wmma,
+        "lowp_type": lowp_type,
+        "exec_type": exec_type,
+        "data": all_results
+    }
+   
 
 def plot_results(results_list, labels):
     if not results_list or all(r is None for r in results_list):
@@ -120,6 +179,46 @@ def plot_threading_results(threading_results):
     plt.tight_layout()
     plt.show()
 
+def plot_scaling_data(all_results_total):
+    plt.figure(figsize=(12, 8))
+    #print(all_results_total)
+    for result in all_results_total:
+        if result is not None:
+            hidden_layers = result["hidden_layers"]
+            use_wmma = result["use_wmma"]
+            lowp_type = result["lowp_type"]
+            exec_type = result["exec_type"]
+            df = result["data"]
+            label = f"{exec_type}, {'float' if lowp_type == 'float' else 'half'}, {'WMMA' if use_wmma else ''}"
+            plt.plot(hidden_layers, [d["diff_ms"].iloc[-1] / 1000 for d in df], label=label, marker='o')
+    plt.xlabel("Hidden Layer Size")
+    plt.ylabel("Time (s)")
+    plt.title("Scaling Results")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    # the same plot but with log scale
+    plt.figure(figsize=(12, 8))
+    for result in all_results_total:
+        if result is not None:
+            hidden_layers = result["hidden_layers"]
+            use_wmma = result["use_wmma"]
+            lowp_type = result["lowp_type"]
+            exec_type = result["exec_type"]
+            df = result["data"]
+            label = f"{exec_type}, {'float' if lowp_type == 'float' else 'half'}, {'WMMA' if use_wmma else ''}"
+            plt.plot(hidden_layers, [d["diff_ms"].iloc[-1] / 1000 for d in df], label=label, marker='o')
+    plt.xlabel("Hidden Layer Size")
+    plt.ylabel("Time (s)")
+    plt.title("Scaling Results (Log Scale)")
+    plt.xscale('log')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    plt.show()
+
 directory = "data"
 averaged_results_cpu_float = load_and_average_results(directory, use_wmma=0, lowp_type="float", exec_type="class CPUExecutor")
 averaged_results_cuda_float = load_and_average_results(directory, use_wmma=0, lowp_type="float", exec_type="class CUDAExecutor")
@@ -146,4 +245,10 @@ if threading_results:
     plot_threading_results(threading_results)
 
 
-
+scaling_directory = "data/scale_test"
+hidden_layer_sizes = [ 4, 6, 8, 10, 12, 14, 16, 18, 20, 28, 32, 64, 128, 256, 512, 768, 1024 ]
+scaling_data_cuda_float = load_scaling_data(scaling_directory, use_wmma=0, lowp_type="float", exec_type="class CUDAExecutor", hidden_layers=hidden_layer_sizes)
+scaling_data_cuda_wmma_half = load_scaling_data(scaling_directory, use_wmma=1, lowp_type="struct __half", exec_type="class CUDAExecutor", hidden_layers=hidden_layer_sizes)
+scaling_data_cpu_float = load_scaling_data(scaling_directory, use_wmma=0, lowp_type="float", exec_type="class CPUExecutor", hidden_layers=hidden_layer_sizes)
+all_results_total = [scaling_data_cuda_float, scaling_data_cuda_wmma_half, scaling_data_cpu_float]
+plot_scaling_data(all_results_total)
