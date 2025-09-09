@@ -139,6 +139,7 @@ def plot_results(results_list, labels):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("time_metrics_full_runs.png")
 
     # Test Accuracy Over Samples Total
     plt.figure(figsize=(12, 8))
@@ -151,6 +152,7 @@ def plot_results(results_list, labels):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("test_accuracy_over_samples.png")
 
     # Test Accuracy Over Time
     plt.figure(figsize=(12, 8))
@@ -163,6 +165,7 @@ def plot_results(results_list, labels):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("test_accuracy_over_time.png")
 
     plt.show()
 
@@ -177,6 +180,7 @@ def plot_threading_results(threading_results):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("threading_results.png")
     plt.show()
 
 def plot_scaling_data(all_results_total):
@@ -197,6 +201,7 @@ def plot_scaling_data(all_results_total):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("scaling_results.png")
 
     # the same plot but with log scale
     plt.figure(figsize=(12, 8))
@@ -216,6 +221,7 @@ def plot_scaling_data(all_results_total):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig("scaling_results_log.png")
 
     plt.show()
 

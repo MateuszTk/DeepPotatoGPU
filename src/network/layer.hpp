@@ -6,8 +6,7 @@
 enum class Activation {
 	Linear,
 	ReLU,
-	Sigmoid,
-	Softmax
+	Sigmoid
 };
 
 struct LayerType {

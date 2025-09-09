@@ -77,11 +77,12 @@ class Matrix {
 			}
 			#endif
 			#if USE_WMMA == 1
-			const int paddings[] = { WMMA_M, WMMA_N, WMMA_K };
-			return padding(value, paddings[dim]);
-			#else
+			const std::array<int, 3> paddings = { WMMA_M, WMMA_N, 1 };
+			if (dim < paddings.size()) {
+				return padding(value, paddings[dim]);
+			}
+			#endif
 			return value;
-			#endif	
 		}
 
 	public:		

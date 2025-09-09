@@ -12,9 +12,7 @@
 
 #include "canvas.hpp"
 #include "idx.hpp"
-
-#define VERBOSE 0
-#define TEST_SET 0
+#include "../utils/stats.hpp"
 
 class TestDigits {
 private:
@@ -118,20 +116,136 @@ public:
 	}
 };
 
-int main(int argc, char** argv) {
-	const std::string logDir = "scale_test/";
-	std::array<uint32_t, 1> workerCounts = { 6 };// <13> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
-	std::array<uint32_t, 17> hiddenLayerSizes = { 4, 6, 8, 10, 12, 14, 16, 18, 20, 28, 32, 64, 128, 256, 512, 768, 1024 };
-	const int epochs = 5;
+struct TestConfig {
+	std::string logDir = "scale_test/";
+	std::vector<uint32_t> workerCounts = { 4 };// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+	std::vector<uint32_t> hiddenLayerSizes = { 128 }; //{ 4, 6, 8, 10, 12, 14, 16, 18, 20, 28, 32, 64, 128, 256, 512, 768, 1024 };
+	int epochs = 10;
+	int batchSize = 30;
+	int iterations = 1;
+	bool testSet = false;
+	bool verbose = false;
 
-	for (auto cpuWorkerCount : workerCounts) {
-		for (auto hiddenLayerSize : hiddenLayerSizes) {
+	bool configure(const std::vector<std::string>& args) {
+		auto parseList = [](const std::string& str) {
+			std::vector<uint32_t> values;
+			size_t pos = 0;
+			std::string s = str;
+			while ((pos = s.find(',')) != std::string::npos) {
+				values.push_back(std::stoi(s.substr(0, pos)));
+				s.erase(0, pos + 1);
+			}
+			if (!s.empty()) {
+				values.push_back(std::stoi(s));
+			}
+			return values;
+			};
+
+		for (size_t i = 1; i < args.size(); i++) {
+			if (args[i] == "--log-dir" && i + 1 < args.size()) {
+				logDir = args[i + 1];
+				if (logDir.back() != '/' && logDir.back() != '\\') {
+					logDir += '/';
+				}
+				i++;
+			}
+			else if (args[i] == "--workers" && i + 1 < args.size()) {
+				workerCounts.clear();
+				std::string workersStr = args[i + 1];
+				workerCounts = parseList(workersStr);
+				i++;
+			}
+			else if (args[i] == "--hidden-layers" && i + 1 < args.size()) {
+				hiddenLayerSizes.clear();
+				std::string layersStr = args[i + 1];
+				hiddenLayerSizes = parseList(layersStr);
+				i++;
+			}
+			else if (args[i] == "--epochs" && i + 1 < args.size()) {
+				epochs = std::stoi(args[i + 1]);
+				i++;
+			}
+			else if (args[i] == "--batch-size" && i + 1 < args.size()) {
+				batchSize = std::stoi(args[i + 1]);
+				i++;
+			}
+			else if (args[i] == "--iterations" && i + 1 < args.size()) {
+				iterations = std::stoi(args[i + 1]);
+				i++;
+			}
+			else if (args[i] == "--test-set") {
+				testSet = true;
+			}
+			else if (args[i] == "--verbose") {
+				verbose = true;
+			}
+			else if (args[i] == "--help" || args[i] == "-h") {
+				std::cout << "Usage: digits [options]\n";
+				std::cout << "Options:\n";
+				std::cout << "  --log-dir <dir>          Directory to save log files\n";
+				std::cout << "  --workers <list>         Comma-separated list of CPU worker counts to test\n";
+				std::cout << "  --hidden-layers <list>   Comma-separated list of hidden layer sizes to test\n";
+				std::cout << "  --epochs <num>           Number of epochs to train\n";
+				std::cout << "  --batch-size <num>       Training batch size\n";
+				std::cout << "  --iterations <num>       Number of test iterations to run\n";
+				std::cout << "  --test-set               Evaluate on test set during training\n";
+				std::cout << "  --verbose                Enable verbose output\n";
+				std::cout << "  --help, -h               Show this help message\n";
+				return false;
+			}
+			else {
+				std::cout << "Bad argument: " << args[i] << '\n';
+				return false;
+			}
+		}
+		return true;
+	}
+
+	void print(std::ostream& os) const {
+		os << "Test configuration:\n";
+		os << " * Log directory: " << logDir << '\n';
+		os << " * Worker counts: ";
+		for (size_t i = 0; i < workerCounts.size(); i++) {
+			os << workerCounts[i];
+			if (i + 1 < workerCounts.size()) {
+				os << ", ";
+			}
+		}
+		os << '\n';
+		os << " * Hidden layer sizes: ";
+		for (size_t i = 0; i < hiddenLayerSizes.size(); i++) {
+			os << hiddenLayerSizes[i];
+			if (i + 1 < hiddenLayerSizes.size()) {
+				os << ", ";
+			}
+		}
+		os << '\n';
+		os << " * Epochs: " << epochs << '\n';
+		os << " * Batch size: " << batchSize << '\n';
+		os << " * Test set: " << (testSet ? "true" : "false") << '\n';
+		os << " * Verbose: " << (verbose ? "true" : "false") << '\n';
+	}
+};
+ 
+int main(int argc, char** argv) {
+	TestConfig config;
+	bool canContinue = config.configure(std::vector<std::string>(argv, argv + argc));
+	if (!canContinue) {
+		return 0;
+	}
+	config.print(std::cout);
+	std::cout << '\n';
+
+	Stats stats;
+
+	for (auto cpuWorkerCount : config.workerCounts) {
+		for (auto hiddenLayerSize : config.hiddenLayerSizes) {
 			std::cout << "Testing with " << cpuWorkerCount << " CPU workers and hidden layer size " << hiddenLayerSize << '\n';
 
 			//CPUExecutor exec(cpuWorkerCount);
 			CUDAExecutor exec;
 
-			for (int testIter = 0; testIter < 1; testIter++) {
+			for (int testIter = 0; testIter < config.iterations; testIter++) {
 				std::cout << "Test iteration: " << testIter << '\n';
 
 				IDX::IDX_Data trainImages = IDX::import("data/train-images.idx3-ubyte");
@@ -153,18 +267,18 @@ int main(int argc, char** argv) {
 						DenseLayer(hiddenLayerSize, Activation::Sigmoid),
 						DenseLayer(10, Activation::Sigmoid)
 					},
-					32,
-					32
+					config.batchSize,
+					config.batchSize
 				);
 
-				std::string logName = logDir + "log_digits_";
+				std::string logName = config.logDir + "log_digits_";
 				logName += std::to_string(testIter) + "_";
 				for (int i = 0; i < network.getLayerCount(); i++) {
 					logName += std::to_string(network.getLayerType(i).getNeurons()) + "_";
 				}
 				logName += std::to_string(network.getMaximumTrainBatchSize()) + "_";
 				logName += std::to_string(cpuWorkerCount) + "_";
-				logName += std::to_string(TEST_SET) + "_";
+				logName += std::to_string(config.testSet) + "_";
 				logName += std::string(typeid(lowp_t).name()) + "_";
 				logName += std::to_string(USE_WMMA) + "_";
 				logName += std::string(typeid(exec).name()) + "_";
@@ -207,7 +321,7 @@ int main(int argc, char** argv) {
 				lossMat.getBuffer().setDirection(BufferDirection::DeviceToHost);
 				float loss = 0.0f;
 
-				for (int epoch = 0; epoch < epochs; epoch++) {
+				for (int epoch = 0; epoch < config.epochs; epoch++) {
 					for (int set = 0; set < sets; set++) {
 						exec.synchronize();
 						Timer timerf;
@@ -226,9 +340,9 @@ int main(int argc, char** argv) {
 						updateTotal += timeru.stop(false);
 						iters++;
 
-						#if TEST_SET == 1
-						//loss += network.loss(exec, lossMat, trainingDataSet.output, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
-						#endif
+						if (config.testSet) {
+							//loss += network.loss(exec, lossMat, trainingDataSet.output, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
+						}
 
 						if (set % (sets / 10) == 0) {
 							float diffMs = setTimer.stop(false) * 1000.0f;
@@ -237,30 +351,32 @@ int main(int argc, char** argv) {
 
 							std::cout << "Epoch: " << epoch << ", Set: " << set << "/" << sets << ", Samples: "
 								<< (set + 1) * network.getMaximumTrainBatchSize() << "/" << sets * network.getMaximumTrainBatchSize() << "\n";
+							std::cout << "Power usage: " << stats.getPowerUsage() << " W\n";
 
 							logFile << samplesTotal << " " << totalTimer.stop(false) * 1000.0f << " " << forwardTotal * 1000.0f << " " << backwardTotal * 1000.0f << " " << updateTotal * 1000.0f;
-							#if TEST_SET == 1
-							logFile << " " << tester.testAll(exec, network);
-							logFile << " " << std::fixed << std::setprecision(8) << loss / (sets / 10);
-							std::cout << "Loss: " << std::fixed << std::setprecision(8) << loss / (sets / 10) << "\n";
-							loss = 0.0f;
-							#else
-							logFile << " 0.0 0.0";
-							#endif
+							if (config.testSet) {
+								logFile << " " << tester.testAll(exec, network);
+								logFile << " " << std::fixed << std::setprecision(8) << loss / (sets / 10);
+								std::cout << "Loss: " << std::fixed << std::setprecision(8) << loss / (sets / 10) << "\n";
+								loss = 0.0f;
+							}
+							else {
+								logFile << " 0.0 0.0";
+							}
 							logFile << "\n";
 
-							#if VERBOSE == 1			
-							std::cout << " * Training speed: " << (set * network.getMaximumTrainBatchSize()) / diff_ms << " samples/s\n";
+							if (config.verbose) {
+								//std::cout << " * Training speed: " << (set * network.getMaximumTrainBatchSize()) / diff_ms << " samples/s\n";
 
-							std::cout << "Forward time avg: " << forwardTotal / iters * 1000.0 << " ms, "
-								<< "Backward time avg: " << backwardTotal / iters * 1000.0 << " ms, "
-								<< "Update time avg: " << updateTotal / iters * 1000.0 << " ms\n";
+								std::cout << "Forward time avg: " << forwardTotal / iters * 1000.0 << " ms, "
+									<< "Backward time avg: " << backwardTotal / iters * 1000.0 << " ms, "
+									<< "Update time avg: " << updateTotal / iters * 1000.0 << " ms\n";
 
-							if (!tester.test(exec, network, canvas)) {
-								epoch = epochs;
-								break;
+								if (!tester.test(exec, network, canvas)) {
+									epoch = config.epochs;
+									break;
+								}
 							}
-							#endif
 
 							setTimer.start();
 						}

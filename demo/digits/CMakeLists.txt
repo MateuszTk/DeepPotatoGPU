@@ -41,9 +41,11 @@ if (ENABLE_CUDA)
 	endif()
 endif()
 
+find_package(CUDAToolkit REQUIRED)
+
 add_executable(digits_demo "main.cu")
 
-target_link_libraries(digits_demo PRIVATE SimpleWindow)
+target_link_libraries(digits_demo PRIVATE SimpleWindow CUDA::nvml)
 target_include_directories(digits_demo PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../utils" "${stb_SOURCE_DIR}")
 
 add_custom_target(copy_assets_digits ALL

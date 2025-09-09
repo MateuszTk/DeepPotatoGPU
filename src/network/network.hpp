@@ -17,9 +17,32 @@ private:
 		return s * (1.0f - s);
 	}
 
+	__host__ __device__ static float relu(float x) {
+		return std::max(0.0f, x);
+	}
+
+	__host__ __device__ static float reluDerivative(float x) {
+		return (x > 0.0f) ? 1.0f : 0.0f;
+	}
+
+	__host__ __device__ static float activate(float input, Activation activation) {
+		if (activation == Activation::Sigmoid) {
+			return sigmoid(input);
+		}
+		else if (activation == Activation::ReLU) {
+			return relu(input);
+		}
+		else {
+			return input;
+		}
+	}
+
 	__host__ __device__ static float deriverate(float input, Activation activation) {
 		if (activation == Activation::Sigmoid) {
 			return sigmoidDerivative(input);
+		}
+		else if (activation == Activation::ReLU) {
+			return reluDerivative(input);
 		}
 		else {
 			return 1.0f;
@@ -80,24 +103,6 @@ public:
 			initWeights(layer);
 			initBiases(layer);
 		}
-		/*int iLayer = 0;
-		for (Layer& layer : layers) {
-			if (iLayer++ == 0) continue;
-
-			for (int i = 0; i < layer.weights.shape(1); i++) {
-				layers[iLayer - 2].biases(i) = randomNormalizedFloat();
-				for (int j = 0; j < layer.weights.shape(0); j++) {
-					layer.weights(j, i) = randomNormalizedFloat();
-					//if constexpr (!std::is_same<float, lowp_t>::value) {
-					//	layer.weightsLow(j, i) = layer.weights(j, i);
-					//}
-				}
-			}
-			//std::cout << layer.weights;
-		}
-		for (int i = 0; i < layers.back().biases.shape(0); i++) {
-			layers.back().biases(i) = randomNormalizedFloat();
-		}*/
 	}
 
 	/*
@@ -131,16 +136,6 @@ public:
 	};
 
 	GENERIC_KERNEL(ForwardLayerKernel) {
-
-		__host__ __device__ float activate(float input, Activation activation) {
-			if (activation == Activation::Sigmoid) {
-				return sigmoid(input);
-			}
-			else {
-				return input;
-			}
-		}
-
 		GENERIC_KERNEL_ENTRY(Layer::WeightsMat_t weights, Layer::WeightsLowMat_t weightsLow, Layer::BiasesMat_t biases, Layer::InputsMat_t inputs, Layer::OutputsMat_t currentInputs, Layer::OutputsMat_t outputs, Activation activation, uint32_t offset, uint32_t batchSize) {
 			#if defined(__CUDA_ARCH__) && USE_WMMA == 1
 			int tileM = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
@@ -364,6 +359,7 @@ public:
 
 			for (unsigned int batch = 0; batch < updateBatchSize; batch++) {
 				float error = learningRate * errors(batch, index.y, 0);
+				// TODOL accumulate in local variable, and not in memory
 				weights(index.y, index.x) += error * static_cast<float>(prevOutputs(batch, index.x));
 				if (index.x == 0) {
 					biases(index.y) += error;
