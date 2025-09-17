@@ -44,7 +44,7 @@ struct Layer {
 	using WeightsMat_t = Matrix2D<float>;
 	using BiasesMat_t = Matrix1D<float>;
 	using OutputsMat_t = Matrix2D<lowp_t>;
-	using ErrorsMat_t = Matrix3D<float>;
+	using ErrorsMat_t = Matrix2D<float>;
 	using InputsMat_t = Matrix2D<float>;
 
 	WeightsMat_t weights;
@@ -60,7 +60,7 @@ struct Layer {
 		weightsLow({ (std::is_same<float, lowp_t>::value ? 0 : type.getNeurons()), inputSize }),
 		biases({ type.getNeurons() }),
 		outputs({ batchSize, type.getNeurons() }),
-		errors({ maxTrainBatchSize, type.getNeurons(), 1 }),
+		errors({ maxTrainBatchSize, type.getNeurons() }),
 		inputs({ batchSize, type.getNeurons() }),
 		type(type) {
 

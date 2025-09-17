@@ -236,14 +236,14 @@ int main(int argc, char** argv) {
 	config.print(std::cout);
 	std::cout << '\n';
 
-	Stats stats;
+	CPUStats stats;
 
 	for (auto cpuWorkerCount : config.workerCounts) {
 		for (auto hiddenLayerSize : config.hiddenLayerSizes) {
 			std::cout << "Testing with " << cpuWorkerCount << " CPU workers and hidden layer size " << hiddenLayerSize << '\n';
 
-			//CPUExecutor exec(cpuWorkerCount);
-			CUDAExecutor exec;
+			CPUExecutor exec(cpuWorkerCount);
+			//CUDAExecutor exec;
 
 			for (int testIter = 0; testIter < config.iterations; testIter++) {
 				std::cout << "Test iteration: " << testIter << '\n';
@@ -260,6 +260,8 @@ int main(int argc, char** argv) {
 				TestDigits tester("data/t10k-images.idx3-ubyte", "data/t10k-labels.idx1-ubyte");
 
 				Canvas canvas(200, 200);
+
+				stats.resetEnergyConsumption();
 
 				Network network({
 						InputLayer(imageSize),
@@ -352,6 +354,7 @@ int main(int argc, char** argv) {
 							std::cout << "Epoch: " << epoch << ", Set: " << set << "/" << sets << ", Samples: "
 								<< (set + 1) * network.getMaximumTrainBatchSize() << "/" << sets * network.getMaximumTrainBatchSize() << "\n";
 							std::cout << "Power usage: " << stats.getPowerUsage() << " W\n";
+							std::cout << "Energy usage: " << stats.getEnergyConsumption() << " Wh\n";
 
 							logFile << samplesTotal << " " << totalTimer.stop(false) * 1000.0f << " " << forwardTotal * 1000.0f << " " << backwardTotal * 1000.0f << " " << updateTotal * 1000.0f;
 							if (config.testSet) {
@@ -385,8 +388,15 @@ int main(int argc, char** argv) {
 					std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * (epoch + 1) << "\n";
 					std::cout << " * Training speed: " << (epoch - lastEpoch) * sets * network.getMaximumTrainBatchSize() / epochTimer.stop(false) << " samples/s\n";
 					lastEpoch = epoch;
+					stats.tick();
 					epochTimer.start();
 				}
+
+				float energyFinal = stats.getEnergyConsumption();
+				float timeFinal = totalTimer.stop(false);
+				std::cout << "Total energy: " << energyFinal << " Wh\n";
+				std::cout << "Total time: " << timeFinal << " s\n";
+				std::cout << "Average power: " << (energyFinal * 3600.0f) / timeFinal << " W\n";
 
 				tester.testAll(exec, network);
 

@@ -284,7 +284,7 @@ public:
 				return;
 			}
 
-			error(index.z, index.y, 0) = (target(index.z + offset, index.y) - static_cast<float>(output(index.z, index.y))) * deriverate(input(index.z, index.y), activation);
+			error(index.z, index.y) = (target(index.z + offset, index.y) - static_cast<float>(output(index.z, index.y))) * deriverate(input(index.z, index.y), activation);
 		}
 	};
 
@@ -300,18 +300,18 @@ public:
 
 			if constexpr (std::is_same<float, lowp_t>::value) {
 				for (unsigned int i = 0; i < weights.shape(0); i++) {
-					sum += weights(i, index.y) * errors(index.z, i, 0);
+					sum += weights(i, index.y) * errors(index.z, i);
 				}
 			}
 			else {
 				for (unsigned int i = 0; i < weightsLow.shape(0); i++) {
-					sum += static_cast<float>(weightsLow(i, index.y)) * errors(index.z, i, 0);
+					sum += static_cast<float>(weightsLow(i, index.y)) * errors(index.z, i);
 				}
 			}
 
 			sum *= deriverate(prevOutputs(index.z, index.y), activation);
 
-			prevErrors(index.z, index.y, 0) = sum;
+			prevErrors(index.z, index.y) = sum;
 		}
 	};
 
@@ -358,7 +358,7 @@ public:
 			}
 
 			for (unsigned int batch = 0; batch < updateBatchSize; batch++) {
-				float error = learningRate * errors(batch, index.y, 0);
+				float error = learningRate * errors(batch, index.y);
 				// TODOL accumulate in local variable, and not in memory
 				weights(index.y, index.x) += error * static_cast<float>(prevOutputs(batch, index.x));
 				if (index.x == 0) {
@@ -372,7 +372,7 @@ public:
 			}
 			#else
 			for (unsigned int batch = 0; batch < updateBatchSize; batch++) {
-				float error = learningRate * errors(batch, index.y, 0);
+				float error = learningRate * errors(batch, index.y);
 				for (unsigned int x = 0; x < prevOutputs.shape(1); x++) {
 					weights(index.y, x) += error * static_cast<float>(prevOutputs(batch, x));
 				}
