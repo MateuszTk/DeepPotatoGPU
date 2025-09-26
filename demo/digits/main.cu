@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
 	config.print(std::cout);
 	std::cout << '\n';
 
-	CPUStats stats;
+	std::unique_ptr<Stats> stats = std::make_unique<DummyStats>();
 
 	for (auto cpuWorkerCount : config.workerCounts) {
 		for (auto hiddenLayerSize : config.hiddenLayerSizes) {
@@ -261,7 +261,7 @@ int main(int argc, char** argv) {
 
 				Canvas canvas(200, 200);
 
-				stats.resetEnergyConsumption();
+				stats->resetEnergyConsumption();
 
 				Network network({
 						InputLayer(imageSize),
@@ -353,8 +353,8 @@ int main(int argc, char** argv) {
 
 							std::cout << "Epoch: " << epoch << ", Set: " << set << "/" << sets << ", Samples: "
 								<< (set + 1) * network.getMaximumTrainBatchSize() << "/" << sets * network.getMaximumTrainBatchSize() << "\n";
-							std::cout << "Power usage: " << stats.getPowerUsage() << " W\n";
-							std::cout << "Energy usage: " << stats.getEnergyConsumption() << " Wh\n";
+							std::cout << "Power usage: " << stats->getPowerUsage() << " W\n";
+							std::cout << "Energy usage: " << stats->getEnergyConsumption() << " Wh\n";
 
 							logFile << samplesTotal << " " << totalTimer.stop(false) * 1000.0f << " " << forwardTotal * 1000.0f << " " << backwardTotal * 1000.0f << " " << updateTotal * 1000.0f;
 							if (config.testSet) {
@@ -388,11 +388,11 @@ int main(int argc, char** argv) {
 					std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * (epoch + 1) << "\n";
 					std::cout << " * Training speed: " << (epoch - lastEpoch) * sets * network.getMaximumTrainBatchSize() / epochTimer.stop(false) << " samples/s\n";
 					lastEpoch = epoch;
-					stats.tick();
+					stats->tick();
 					epochTimer.start();
 				}
 
-				float energyFinal = stats.getEnergyConsumption();
+				float energyFinal = stats->getEnergyConsumption();
 				float timeFinal = totalTimer.stop(false);
 				std::cout << "Total energy: " << energyFinal << " Wh\n";
 				std::cout << "Total time: " << timeFinal << " s\n";

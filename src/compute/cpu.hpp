@@ -109,29 +109,31 @@ class CPUExecutor : public Executor {
 			if (workers.size() > 1) {
 				EXECUTOR_CPU_LOG(" *  Using %d workers\n", WORKER_COUNT);
 
-				//Timer timerh;
+				dim3 lastStop = { 0, 0, 0 };
 				for (unsigned int i = 0; i < workers.size(); i++) {
 					dim3 start = { 0, 0, 0 };
 					dim3 stop = threadsPerBlock;
 					if (threadsPerBlock.z > 1) {
 						uint32_t zPerWorker = threadsPerBlock.z / workers.size();
-						start.z = i * zPerWorker;
-						stop.z = (i == workers.size() - 1) ? threadsPerBlock.z : (i + 1) * zPerWorker;
+						uint32_t zRemainder = threadsPerBlock.z % workers.size();
+						uint32_t zExtra = (i < zRemainder) ? 1 : 0;
+						start.z = lastStop.z;
+						stop.z = start.z + zPerWorker + zExtra;
+						lastStop.z = stop.z;
 					}
 					else {
 						uint32_t yPerWorker = threadsPerBlock.y / workers.size();
-						start.y = i * yPerWorker;
-						stop.y = (i == workers.size() - 1) ? threadsPerBlock.y : (i + 1) * yPerWorker;
+						uint32_t yRemainder = threadsPerBlock.y % workers.size();
+						uint32_t yExtra = (i < yRemainder) ? 1 : 0;
+						start.y = lastStop.y;
+						stop.y = start.y + yPerWorker + yExtra;
+						lastStop.y = stop.y;
 					}
-					//timerh.start();
+
 					workers[i].addJob<Kernel>(start, stop, threadsPerBlock, args...);
 				}
 
 				wait();
-
-				//timerh.stop();
-
-				//std::cout << '\n';
 			}
 			else {
 				EXECUTOR_CPU_LOG(" *  Using main thread\n");

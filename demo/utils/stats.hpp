@@ -12,6 +12,15 @@ public:
 	virtual void tick() {};
 };
 
+class DummyStats : public Stats {
+public:
+	DummyStats() {}
+	~DummyStats() override = default;
+	float getPowerUsage() override { return 0.0f; }
+	void resetEnergyConsumption() override {}
+	float getEnergyConsumption() override { return 0.0f; }
+};
+
 class CUDAStats : public Stats {
 private:
 	nvmlDevice_t device;

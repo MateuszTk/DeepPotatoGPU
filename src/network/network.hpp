@@ -61,6 +61,7 @@ private:
 		return nr;
 	}
 
+	// TODO: use a different initialization method for ReLU
 	void initWeights(Layer& layer) {
 		for (unsigned int y = 0; y < layer.weights.shape(0); y++) {
 			for (unsigned int x = 0; x < layer.weights.shape(1); x++) {
