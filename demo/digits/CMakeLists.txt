@@ -2,50 +2,37 @@
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-	set(CMAKE_CUDA_ARCHITECTURES 75)
-endif()
-
-if(NOT DEFINED CMAKE_CUDA_COMPILER OR NOT EXISTS ${CMAKE_CUDA_COMPILER})
-    set(ENABLE_CUDA FALSE)
-else()
-    set(ENABLE_CUDA TRUE)
-endif()
+file(GLOB SOURCES main.cu)
 
 if (ENABLE_CUDA)
 	project("digits_demo" LANGUAGES CXX CUDA)
-	add_compile_definitions(CUDA_AVAILIABLE)
-else()
-	project("digits_demo" LANGUAGES CXX)
-endif()
 
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xptxas -v")
-# -fno-fast-math --fmad=false"
+	set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xptxas -v")
+	# -fno-fast-math --fmad=false"
 
-if (ENABLE_CUDA)
 	# Enable CUDA debugging if debug build
 	if (CMAKE_BUILD_TYPE MATCHES Debug)
 		set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
 	endif()
-endif()
 
-include(CTest)
-enable_testing()
-
-if (ENABLE_CUDA)
 	# Set include directories for Visual Studio IntelliSense
 	# Not required for compilation, as CMake already supports CUDA
 	if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
 		find_package(CUDA REQUIRED)
 		include_directories(${CUDA_INCLUDE_DIRS})
 	endif()
+
+	find_package(CUDAToolkit REQUIRED)
+
+	add_executable(digits_demo ${SOURCES})
+	target_link_libraries(digits_demo PRIVATE SimpleWindow CUDA::nvml)
+else()
+	project("digits_demo" LANGUAGES CXX)
+	set_source_files_properties(${SOURCES} PROPERTIES LANGUAGE CXX)
+	add_executable(digits_demo ${SOURCES})
+	target_link_libraries(digits_demo PRIVATE SimpleWindow)
 endif()
 
-find_package(CUDAToolkit REQUIRED)
-
-add_executable(digits_demo "main.cu")
-
-target_link_libraries(digits_demo PRIVATE SimpleWindow CUDA::nvml)
 target_include_directories(digits_demo PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../utils" "${stb_SOURCE_DIR}")
 
 add_custom_target(copy_assets_digits ALL

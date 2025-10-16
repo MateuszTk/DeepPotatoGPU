@@ -5,8 +5,6 @@
 #include "executor.hpp"
 #include "buffer.hpp"
 
-#ifdef CUDA_AVAILIABLE
-
 #if EXECUTOR_DEBUG_ON
 #define EXECUTOR_CUDA_LOG(...) printf("[CUDA EXECUTOR] "__VA_ARGS__)
 #else
@@ -22,11 +20,14 @@ class CUDAExecutor : public Executor {
 
 	private:
 
+		#ifdef CUDA_AVAILABLE
 		cudaDeviceProp prop;
+		#endif
 
 	public:
 
 		CUDAExecutor() {
+			#ifdef CUDA_AVAILABLE
 			if (cudaSetDevice(0) != cudaSuccess) {
 				throw std::runtime_error("Failed to set CUDA device");
 			}
@@ -37,16 +38,22 @@ class CUDAExecutor : public Executor {
 			}
 
 			EXECUTOR_CUDA_LOG("CUDA device: %s\n", prop.name);
+			#else
+			throw std::runtime_error("CUDA is not available");
+			#endif
 		}
 
 		virtual ~CUDAExecutor() {
+			#ifdef CUDA_AVAILABLE
 			if (cudaDeviceReset() != cudaSuccess) {
 				throw std::runtime_error("Failed to reset CUDA device");
 			}
+			#endif
 		}
 
 		template <typename Kernel, typename... Args>
 		void execute(dim3 threads, Args&... args) {
+			#ifdef CUDA_AVAILABLE
 			unsigned int maxThreads = prop.maxThreadsPerBlock;
 			dim3 maxBlockDim = { (unsigned int)prop.maxThreadsDim[0], (unsigned int)prop.maxThreadsDim[1], (unsigned int)prop.maxThreadsDim[2] };
 			dim3 threadsPerBlock;
@@ -67,10 +74,14 @@ class CUDAExecutor : public Executor {
 
 			LaunchParams params{ numBlocks, threadsPerBlock };
 			executeParams<Kernel>(params, args...);
+			#else
+			throw std::runtime_error("CUDA is not available");
+			#endif
 		}
 
 		template <typename Kernel, typename... Args>
 		void executeParams(const LaunchParams& launchParams, Args&... args) {
+			#ifdef CUDA_AVAILABLE
 			Kernel kernel{};
 
 			([&](auto& buffer) {
@@ -95,10 +106,13 @@ class CUDAExecutor : public Executor {
 				message += cudaGetErrorString(cudaGetLastError());
 				throw std::runtime_error(message);
 			}
-
+			#else
+			throw std::runtime_error("CUDA is not available");
+			#endif
 		}
 
 		void synchronize() override {
+			#ifdef CUDA_AVAILABLE
 			cudaError_t error = cudaDeviceSynchronize();
 			if (error != cudaSuccess) {
 				std::string message = "Failed to synchronize CUDA device: ";
@@ -106,8 +120,9 @@ class CUDAExecutor : public Executor {
 				std::cout << message << std::endl;
 				throw std::runtime_error(message);
 			}
+			#else
+			throw std::runtime_error("CUDA is not available");
+			#endif
 		}
 
 };
-
-#endif

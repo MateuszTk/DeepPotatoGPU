@@ -129,13 +129,15 @@ def plot_results(results_list, labels):
     plt.figure(figsize=(12, 8))
     bar_width = 0.15
     groups = ["diff_ms", "forwardAvg", "backwardAvg", "updateAvg"]
+    group_labels = ["Total Time", "Forward Pass", "Backward Pass", "Update"]
     x = range(len(groups))
     for i, (df, label) in enumerate(zip(results_list, labels)):
         if df is not None:
             offset = i * bar_width
-            plt.bar([x_val + offset for x_val in x], df[groups].mean().values, width=bar_width, label=label)
+            plt.bar([x_val + offset for x_val in x], df[groups].mean().values / 1000.0, width=bar_width, label=label)
     plt.title("Time Metrics of Full Runs")
-    plt.ylabel("Time (ms)")
+    plt.ylabel("Time (s)")
+    plt.xticks([r + bar_width * (len(results_list) - 1) / 2 for r in x], group_labels)
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
@@ -223,6 +225,41 @@ def plot_scaling_data(all_results_total):
     plt.tight_layout()
     plt.savefig("scaling_results_log.png")
 
+    # plot of speedup factor compared to CPU float
+    plt.figure(figsize=(12, 8))
+    cpu_data = None
+    for result in all_results_total:
+        if result is not None:
+            hidden_layers = result["hidden_layers"]
+            use_wmma = result["use_wmma"]
+            lowp_type = result["lowp_type"]
+            exec_type = result["exec_type"]
+            df = result["data"]
+            if exec_type == "class CPUExecutor":
+                cpu_data = df
+                break
+    
+    if cpu_data is not None:
+        cpu_times = [d["diff_ms"].iloc[-1] for d in cpu_data]
+        for result in all_results_total:
+            if result is not None:
+                hidden_layers = result["hidden_layers"]
+                use_wmma = result["use_wmma"]
+                lowp_type = result["lowp_type"]
+                exec_type = result["exec_type"]
+                df = result["data"]
+                label = f"{exec_type}, {'float' if lowp_type == 'float' else 'half'}, {'WMMA' if use_wmma else ''}"
+                times = [d["diff_ms"].iloc[-1] for d in df]
+                speedup = [cpu / time if time > 0 else 0 for cpu, time in zip(cpu_times, times)]
+                plt.plot(hidden_layers, speedup, label=label, marker='o')
+
+    plt.xlabel("Hidden Layer Size")
+    plt.ylabel("Speedup Factor")
+    plt.legend()
+    plt.title("Speedup Factor Compared to CPU Float")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("scaling_results_speedup.png")
     plt.show()
 
 directory = "data"

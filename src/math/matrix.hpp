@@ -214,6 +214,7 @@ class Matrix {
 			executor.execute<MatrixMultiplyKernel>({ matC.shape(1), matC.shape(0) }, matA, matB, matC);
 		}
 
+		#ifdef CUDA_AVAILABLE
 		GENERIC_KERNEL(MatrixMultiplyKernelWMMA) {
 			__device__ void operator()(Matrix2D<half> matA, Matrix2D<half> matB, Matrix2D<float> matC) {
 				int tileM = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
@@ -257,8 +258,10 @@ class Matrix {
 
 			return launchParams;
 		}
+		#endif
 
 		__host__ static void multiplyWMMA(CUDAExecutor& executor, Matrix2D<half>& matA, Matrix2D<half>& matB, Matrix2D<float>& matC) {
+			#ifdef CUDA_AVAILABLE
 			if (matA.shape(1) != matB.shape(0) || matA.shape(0) != matC.shape(0) || matB.shape(1) != matC.shape(1)) {
 				throw std::invalid_argument("Matrix dimensions do not match");
 			}
@@ -275,6 +278,9 @@ class Matrix {
 			executor.executeParams<MatrixMultiplyKernelWMMA>(launchParams,
 				matA, matB, matC
 			);
+			#else
+			throw std::runtime_error("WMMA is not available");
+			#endif
 		}
 
 		GENERIC_KERNEL(MatrixScalarMultiplyKernel) {

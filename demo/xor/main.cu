@@ -21,7 +21,11 @@ std::array<DataSet<float>, 4> data = { {
 int main() {
 	Canvas canvas(400, 400);
 
+	#ifdef CUDA_AVAILABLE
 	CUDAExecutor exec;
+	#else
+	CPUExecutor exec;
+	#endif
 
 	Timer timer, timer2;
 

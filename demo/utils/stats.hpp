@@ -1,7 +1,10 @@
 #pragma once
 #include "external.hpp"
-#include <nvml.h>
 #include "timer.hpp"
+
+#ifdef CUDA_AVAILABLE
+#include <nvml.h>
+#endif
 
 class Stats {
 public:
@@ -23,10 +26,13 @@ public:
 
 class CUDAStats : public Stats {
 private:
+	#ifdef CUDA_AVAILABLE
 	nvmlDevice_t device;
 	float lastEnergy = 0;
+	#endif
 
 	float getTotalEnergyConsumption() {
+		#ifdef CUDA_AVAILABLE
 		unsigned long long energy;
 		nvmlReturn_t result = nvmlDeviceGetTotalEnergyConsumption(device, &energy);
 		if (result != NVML_SUCCESS) {
@@ -34,10 +40,14 @@ private:
 		}
 		float energyWattHours = static_cast<float>(energy) / (3600.0f * 1000.0f);
 		return energyWattHours;
+		#else
+		throw std::runtime_error("CUDA is not available");
+		#endif
 	}
 
 public:
 	CUDAStats() {
+		#ifdef CUDA_AVAILABLE
 		nvmlReturn_t result = nvmlInit();
 		if (result != NVML_SUCCESS) {
 			throw std::runtime_error("Failed to initialize NVML");
@@ -50,32 +60,49 @@ public:
 		}
 
 		lastEnergy = getTotalEnergyConsumption();
+		#else
+		throw std::runtime_error("CUDA is not available");
+		#endif
 	}
 
 	~CUDAStats() {
+		#ifdef CUDA_AVAILABLE
 		nvmlReturn_t result = nvmlShutdown();
 		if (result != NVML_SUCCESS) {
 			throw std::runtime_error("Failed to shutdown NVML");
 		}
+		#endif
 	}
 
 	float getPowerUsage() override {
+		#ifdef CUDA_AVAILABLE
 		unsigned int power;
 		nvmlReturn_t result = nvmlDeviceGetPowerUsage(device, &power);
 		if (result != NVML_SUCCESS) {
 			throw std::runtime_error("Failed to get power usage");
 		}
 		return static_cast<float>(power) / 1000.0f;
+		#else
+		throw std::runtime_error("CUDA is not available");
+		#endif
 	}
 
 	void resetEnergyConsumption() override {
+		#ifdef CUDA_AVAILABLE
 		lastEnergy = getTotalEnergyConsumption();
+		#else
+		throw std::runtime_error("CUDA is not available");
+		#endif
 	}
 
 	float getEnergyConsumption() {
+		#ifdef CUDA_AVAILABLE
 		float currentEnergy = getTotalEnergyConsumption();
 		float energyConsumed = currentEnergy - lastEnergy;
 		return energyConsumed;
+		#else
+		throw std::runtime_error("CUDA is not available");
+		#endif
 	}
 };
 

@@ -43,7 +43,7 @@ class Buffer {
 		BufferDirection direction = BufferDirection::Bidirectional;
 
 		__host__ void copyToDevice() {
-			#ifdef CUDA_AVAILIABLE
+			#ifdef CUDA_AVAILABLE
 				if (dataDevice == nullptr) {
 					BUFFER_LOG("Allocating device memory (%d bytes)\n", count * sizeof(T));
 
@@ -63,7 +63,7 @@ class Buffer {
 		}
 
 		__host__ void copyToHost() {
-			#ifdef CUDA_AVAILIABLE
+			#ifdef CUDA_AVAILABLE
 				if (dataDevice != nullptr && direction != BufferDirection::HostToDevice) {
 					BUFFER_LOG("Copying data to host (%d bytes)\n", count * sizeof(T));
 
@@ -76,7 +76,7 @@ class Buffer {
 		}
 
 		__host__ void transitionLocation(Location dstLocation) {
-			#ifdef CUDA_AVAILIABLE
+			#ifdef CUDA_AVAILABLE
 				if (*location == Location::Host && dstLocation == Location::Device) {
 					copyToDevice();
 					*location = Location::Device;
@@ -125,7 +125,7 @@ class Buffer {
 		__host__ __device__ ~Buffer() {
 			#ifndef __CUDA_ARCH__
 				if (!isCopy) {
-					#ifdef CUDA_AVAILIABLE
+					#ifdef CUDA_AVAILABLE
 						if (dataDevice != nullptr) {
 							cudaFree(dataDevice);
 						}
@@ -161,7 +161,7 @@ class Buffer {
 			if (dataHost != nullptr) {
 				delete[] dataHost;
 			}
-			#ifdef CUDA_AVAILIABLE
+			#ifdef CUDA_AVAILABLE
 				if (dataDevice != nullptr) {
 					cudaFree(dataDevice);
 				}

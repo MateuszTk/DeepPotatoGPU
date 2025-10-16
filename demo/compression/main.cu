@@ -30,7 +30,11 @@ int main() {
 	Canvas canvas(200, 200);
 	Timer timer, timer2;
 
+	#ifdef CUDA_AVAILABLE
 	CUDAExecutor exec;
+	#else
+	CPUExecutor exec;
+	#endif
 
 	Network network({
 			InputLayer(2),

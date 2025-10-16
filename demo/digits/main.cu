@@ -235,15 +235,24 @@ int main(int argc, char** argv) {
 	}
 	config.print(std::cout);
 	std::cout << '\n';
+	std::cout << "lowp_t: " << typeid(lowp_t).name() << '\n';
+	std::cout << "USE_WMMA: " << (USE_WMMA ? "true" : "false") << '\n';
 
-	std::unique_ptr<Stats> stats = std::make_unique<DummyStats>();
+	#ifdef CUDA_AVAILABLE
+	std::unique_ptr<Stats> stats = std::make_unique<CUDAStats>();
+	#else
+	std::unique_ptr<Stats> stats = std::make_unique<CPUStats>();
+	#endif
 
 	for (auto cpuWorkerCount : config.workerCounts) {
 		for (auto hiddenLayerSize : config.hiddenLayerSizes) {
 			std::cout << "Testing with " << cpuWorkerCount << " CPU workers and hidden layer size " << hiddenLayerSize << '\n';
 
+			#ifdef CUDA_AVAILABLE
+			CUDAExecutor exec;
+			#else
 			CPUExecutor exec(cpuWorkerCount);
-			//CUDAExecutor exec;
+			#endif
 
 			for (int testIter = 0; testIter < config.iterations; testIter++) {
 				std::cout << "Test iteration: " << testIter << '\n';

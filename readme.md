@@ -13,3 +13,8 @@ cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release --target xor_demo
 ```
+
+Available options for CMake:
+- `-DDISABLE_CUDA=ON`: Disable CUDA support even if available. (default: OFF)
+- `-DENABLE_FP16=ON`: Use FP16 data type. (default: OFF)
+- `-DENABLE_WMMA=ON`: Use Tensor Cores via WMMA API. (default: OFF)
