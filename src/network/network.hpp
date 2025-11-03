@@ -139,17 +139,16 @@ public:
 	GENERIC_KERNEL(ForwardLayerKernel) {
 		GENERIC_KERNEL_ENTRY(Layer::WeightsMat_t weights, Layer::WeightsLowMat_t weightsLow, Layer::BiasesMat_t biases, Layer::InputsMat_t inputs, Layer::OutputsMat_t currentInputs, Layer::OutputsMat_t outputs, Activation activation, uint32_t offset, uint32_t batchSize) {
 			#if defined(__CUDA_ARCH__) && USE_WMMA == 1
-			int tileM = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
-			int tileN = blockIdx.y;
+			const int tileM = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
+			const int tileN = blockIdx.y * blockDim.y + threadIdx.y;
 
-			int M = weightsLow.dataShape(0);
-			int N = currentInputs.dataShape(0);
-			int K = weightsLow.dataShape(1);
+			const int M = weightsLow.dataShape(0);
+			const int N = currentInputs.dataShape(0);
+			const int K = weightsLow.dataShape(1);
 
 			wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
 			wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::col_major> b_frag;
 			wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> c_frag;
-			//wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, half> out_frag;
 
 			wmma::fill_fragment(c_frag, 0.0f);
 
@@ -163,37 +162,19 @@ public:
 				wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
 			}
 
-			// Store to shared memory
-			//__shared__ float inputs_shared[WMMA_M * WMMA_N];
-			//wmma::store_matrix_sync(inputs_shared, c_frag, WMMA_N, wmma::mem_row_major);
-
 			float* c_tile = &inputs(tileN * WMMA_N, tileM * WMMA_M);
 			wmma::store_matrix_sync(c_tile, c_frag, M, wmma::mem_col_major);
 
-			float bias = biases(tileM * WMMA_M + threadIdx.x / 2);
+			// Add bias and apply activation on the stored results
+			const int localThreadIdx = threadIdx.x % warpSize;
+			const float bias = biases(tileM * WMMA_M + localThreadIdx / 2);
 			for (int i = 0; i < c_frag.num_elements; i++) {
-				int xp = tileN * WMMA_N + i + (threadIdx.x % 2) * c_frag.num_elements;
-				int yp = tileM * WMMA_M + threadIdx.x / 2;
+				int xp = tileN * WMMA_N + i + (localThreadIdx % 2) * c_frag.num_elements;
+				int yp = tileM * WMMA_M + localThreadIdx / 2;
 				auto& input = inputs(xp, yp);
-				//float input = inputs_shared[xp + yp * WMMA_N] + bias;
 				input += bias;
-				//inputs(xp, yp) = input;
 				outputs(xp, yp) = __float2half(activate(input, activation));
 			}
-
-			/*// maybe todo merge weights and biases into one matrix
-			float* c_tile = &inputs(tileN * WMMA_N, tileM * WMMA_M);
-			for (int i = 0; i < c_frag.num_elements; i++) {
-				c_frag.x[i] += biases(tileM * WMMA_M);
-			}
-			wmma::store_matrix_sync(c_tile, c_frag, K, wmma::mem_col_major);
-
-			for (int i = 0; i < out_frag.num_elements; i++) {
-				out_frag.x[i] = __float2half(activate(c_frag.x[i], activation));
-			}
-
-			lowp_t* output_tile = &outputs(tileN * WMMA_N, tileM * WMMA_M);
-			wmma::store_matrix_sync(output_tile, out_frag, K, wmma::mem_col_major);*/
 
 			#else
 
@@ -212,7 +193,7 @@ public:
 			}
 			else {
 				for (unsigned int i = 0; i < weightsLow.shape(1); i++) {
-					output += static_cast<float>(weightsLow(index.y, i)) * static_cast<float>(currentInputs(index.z, i));
+					output += static_cast<float>(weightsLow(index.y, i) * currentInputs(index.z, i));
 				}
 			}
 

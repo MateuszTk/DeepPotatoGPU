@@ -20,9 +20,13 @@ using Matrix2D = Matrix<T, 2>;
 template <typename T>
 using Matrix3D = Matrix<T, 3>;
 
+#define WARP_SIZE 32
+
 #define WMMA_M 16
 #define WMMA_N 16
 #define WMMA_K 16
+
+#define WARPS_PER_BLOCK_EDGE 1
 
 template <typename T, unsigned int nDim>
 class Matrix {
@@ -77,7 +81,7 @@ class Matrix {
 			}
 			#endif
 			#if USE_WMMA == 1
-			const std::array<int, 3> paddings = { WMMA_M, WMMA_N, 1 };
+			const std::array<int, 3> paddings = { WMMA_M * WARPS_PER_BLOCK_EDGE, WMMA_N * WARPS_PER_BLOCK_EDGE, 1 };
 			if (dim < paddings.size()) {
 				return padding(value, paddings[dim]);
 			}
@@ -218,7 +222,7 @@ class Matrix {
 		GENERIC_KERNEL(MatrixMultiplyKernelWMMA) {
 			__device__ void operator()(Matrix2D<half> matA, Matrix2D<half> matB, Matrix2D<float> matC) {
 				int tileM = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
-				int tileN = blockIdx.y;
+				int tileN = blockIdx.y * blockDim.y + threadIdx.y;
 
 				int N = matB.dataShape(1);
 				int K = matA.dataShape(1);
@@ -248,13 +252,9 @@ class Matrix {
 			matrixM = getPaddingForDim(matrixM, 0);
 			matrixN = getPaddingForDim(matrixN, 1);
 
-			// TODO: move this to a more appropriate place to avoid multiple calls
-			int warpSize = 0;
-			cudaDeviceGetAttribute(&warpSize, cudaDevAttrWarpSize, 0);
-
 			LaunchParams launchParams;
-			launchParams.blocks = { (uint32_t)matrixM / WMMA_M, (uint32_t)matrixN / WMMA_N, 1 };
-			launchParams.threads = { (uint32_t)warpSize, 1, 1 }; // TODO: Launch more warps per block
+			launchParams.blocks = { (uint32_t)matrixM / (WMMA_M * WARPS_PER_BLOCK_EDGE), (uint32_t)matrixN / (WMMA_N * WARPS_PER_BLOCK_EDGE), 1 };
+			launchParams.threads = { (uint32_t)WARP_SIZE * WARPS_PER_BLOCK_EDGE, WARPS_PER_BLOCK_EDGE, 1 };
 
 			return launchParams;
 		}
