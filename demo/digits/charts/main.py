@@ -239,6 +239,8 @@ def plot_scaling_data(all_results_total):
                 cpu_data = df
                 break
     
+    max_speedups = {}
+    min_speedups = {}
     if cpu_data is not None:
         cpu_times = [d["diff_ms"].iloc[-1] for d in cpu_data]
         for result in all_results_total:
@@ -252,6 +254,14 @@ def plot_scaling_data(all_results_total):
                 times = [d["diff_ms"].iloc[-1] for d in df]
                 speedup = [cpu / time if time > 0 else 0 for cpu, time in zip(cpu_times, times)]
                 plt.plot(hidden_layers, speedup, label=label, marker='o')
+                max_speedups[label] = {
+                    "max_speedup": max(speedup),
+                    "layer_size": hidden_layers[speedup.index(max(speedup))]
+                }
+                min_speedups[label] = {
+                    "min_speedup": min(speedup),
+                    "layer_size": hidden_layers[speedup.index(min(speedup))]
+                }
 
     plt.xlabel("Hidden Layer Size")
     plt.ylabel("Speedup Factor")
@@ -261,6 +271,18 @@ def plot_scaling_data(all_results_total):
     plt.tight_layout()
     plt.savefig("scaling_results_speedup.png")
     plt.show()
+
+    # Print max speedup information as a table
+    print("Max Speedup Information:")
+    print(f"{'Configuration':<50} {'Max Speedup':<15} {'Layer Size':<15}")
+    for label, info in max_speedups.items():
+        print(f"{label:<50} {info['max_speedup']:<15.2f} {info['layer_size']:<15}")
+
+    # Print min speedup information as a table
+    print("Minimum Speedup Information:")
+    print(f"{'Configuration':<50} {'Min Speedup':<15} {'Layer Size':<15}")
+    for label, info in min_speedups.items():
+        print(f"{label:<50} {info['min_speedup']:<15.2f} {info['layer_size']:<15}")
 
 directory = "data"
 averaged_results_cpu_float = load_and_average_results(directory, use_wmma=0, lowp_type="float", exec_type="class CPUExecutor")

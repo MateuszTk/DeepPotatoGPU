@@ -57,10 +57,10 @@ int main() {
 	testInput.getBuffer().setDirection(BufferDirection::HostToDevice);
 	initInput(testInput, canvas);
 
-	const int epochs = 1'000'000'000;
-	int lastEpoch = 0;
+	const int iterations = 1'000'000'000;
+	int lastIteration = 0;
 
-	for (int epoch = 0; epoch < epochs; epoch++) {
+	for (int iteration = 0; iteration < iterations; iteration++) {
 		for (int set = 0; set < sets; set++) {
 			for (int i = 0; i < network.getMaximumTrainBatchSize(); i++) {
 				int index = i + set * network.getMaximumTrainBatchSize();
@@ -82,12 +82,12 @@ int main() {
 			network.update(exec, 0.1f, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
 		}
 
-		if (epoch % (100000 / (network.getMaximumTrainBatchSize() * sets)) == 0) {
-			auto elapsed = timer2.stop();
-			std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * epoch << ", samples per second: "
-				<< (sets * network.getMaximumTrainBatchSize() * (epoch - lastEpoch)) / elapsed << "\n";
-			std::cout << " * Training ";
-			lastEpoch = epoch;
+		if (iteration % (100000 / (network.getMaximumTrainBatchSize() * sets)) == 0) {
+			auto elapsed = timer2.stop(false);
+			std::cout << "Iteration: " << iteration << ", Samples: " << sets * network.getMaximumTrainBatchSize() * iteration << ", samples per second: "
+				<< (sets * network.getMaximumTrainBatchSize() * (iteration - lastIteration)) / elapsed << "\n";
+			std::cout << " * Training " << elapsed << " ms\n";
+			lastIteration = iteration;
 			
 			timer2.start();
 

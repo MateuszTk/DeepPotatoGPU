@@ -358,28 +358,35 @@ public:
 				return;
 			}
 
+			float weightUpdate = 0.0f;
+			float biasUpdate = 0.0f;
 			for (unsigned int batch = 0; batch < updateBatchSize; batch++) {
 				float error = learningRate * errors(batch, index.y);
-				// TODOL accumulate in local variable, and not in memory
-				weights(index.y, index.x) += error * static_cast<float>(prevOutputs(batch, index.x));
+				weightUpdate += error * static_cast<float>(prevOutputs(batch, index.x));
 				if (index.x == 0) {
-					biases(index.y) += error;
+					biasUpdate += error;
 				}
 			}
+			weights(index.y, index.x) += weightUpdate;
+			biases(index.y) += biasUpdate;
 
-			if constexpr (!std::is_same<float, lowp_t>::value) {
-				//weightsLow(index.y, index.x) = __float2half(weights(index.y, index.x));
-				weightsLow(index.y, index.x) = weights(index.y, index.x);
-			}
 			#else
+
+			float biasUpdate = 0.0f;
 			for (unsigned int batch = 0; batch < updateBatchSize; batch++) {
 				float error = learningRate * errors(batch, index.y);
 				for (unsigned int x = 0; x < prevOutputs.shape(1); x++) {
 					weights(index.y, x) += error * static_cast<float>(prevOutputs(batch, x));
 				}
-				biases(index.y) += error;
+				biasUpdate += error;
 			}
+			biases(index.y) += biasUpdate;
 			#endif
+
+			if constexpr (!std::is_same<float, lowp_t>::value) {
+				//weightsLow(index.y, index.x) = __float2half(weights(index.y, index.x));
+				weightsLow(index.y, index.x) = weights(index.y, index.x);
+			}
 		}
 	};
 
