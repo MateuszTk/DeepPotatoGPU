@@ -42,10 +42,10 @@ int main() {
 		Timer timer1;
 		std::cout << "Starting reference multiplication...\n";
 		timer1.start();
-		for (int loop = 0; loop < 10; loop++) {
-			af(0, 0) += 0;
-			bf(0, 0) += 0;
-			c_ref(0, 0) += 0;
+		for (int loop = 0; loop < 100; loop++) {
+			//af(0, 0) += 0;
+			//bf(0, 0) += 0;
+			//c_ref(0, 0) += 0;
 			Matrix2D<float>::multiply(exec, af, bf, c_ref);
 			exec.synchronize();
 		}
@@ -56,10 +56,10 @@ int main() {
 
 		std::cout << "Starting WMMA multiplication...\n";
 		timer1.start();
-		for (int loop = 0; loop < 10; loop++) {
-			a(0, 0) += __float2half(0);
-			b(0, 0) += __float2half(0);
-			c_mma(0, 0) += 0;
+		for (int loop = 0; loop < 100; loop++) {
+			//a(0, 0) += __float2half(0);
+			//b(0, 0) += __float2half(0);
+			//c_mma(0, 0) += 0;
 			Matrix2D<float>::multiplyWMMA(exec, a, b, c_mma);
 			exec.synchronize();
 		}

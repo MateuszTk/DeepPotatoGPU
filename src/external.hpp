@@ -56,6 +56,8 @@
 	#define __device__
 	#define __host__
 
+	#define __float2half(x) x
+
 	using half = float;
 #endif
 

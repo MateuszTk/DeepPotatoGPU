@@ -4,11 +4,11 @@ config = [
 		'name': "Accuracy/Accuracy",
 		'args': [
 			"--log-dir", "logs/accuracy",
-			"--workers", "4",
+			"--workers", "8",
 			"--epochs", "10",
 			"--batch-size", "30",
 			"--hidden-layers", "128",
-			"--iterations", "10",
+			"--runs", "2",
 			"--test-set"
 		],
 		'subtests': [
@@ -22,7 +22,7 @@ config = [
 			},	
 			{
 				'name': "CUDA/Mixed",
-				'executable': "cuda_mixed/digits_demo.exe"
+				'executable': "cuda_half/digits_demo.exe"
 			},
 			{
 				'name': "CUDA/WMMA",
@@ -34,11 +34,11 @@ config = [
 		'name': "Accuracy/Performance",
 		'args': [
 			"--log-dir", "logs/accuracy",
-			"--workers", "4",
+			"--workers", "8",
 			"--epochs", "10",
 			"--batch-size", "30",
 			"--hidden-layers", "128",
-			"--iterations", "10"
+			"--runs", "2"
 		],
 		'subtests': [
 			{
@@ -63,16 +63,16 @@ config = [
 		'name': "Performance/Scaling",
 		'args': [
 			"--log-dir", "logs/scaling",
-			"--workers", "6",
-			"--epochs", "10",
-			"--batch-size", "30",
-			"--hidden-layers", "4,6,8,10,12,14,16,18,20,28,32,64,128,256,512,768,1024",
-			"--iterations", "10"
+			"--workers", "20",
+			"--epochs", "1",
+			"--batch-size", "32",
+			"--hidden-layers", "4,6,8,10,12,14,16,18,20,28,32,64,128,256,512,768,1024,2048",
+			"--runs", "5"
 		],
 		'subtests': [
 			{
 				'name': "CPU",
-				'executable': "cpu_digits_demo.exe"
+				'executable': "cpu/digits_demo.exe"
 			},
 			{
 				'name': "CUDA/Float",
@@ -88,11 +88,11 @@ config = [
 		'name': "Performance/Threading",
 		'args': [
 			"--log-dir", "logs/threading",
-			"--workers", "6",
-			"--epochs", "10",
-			"--batch-size", "30",
+			"--workers", "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32",
+			"--epochs", "1",
+			"--batch-size", "32",
 			"--hidden-layers", "512",
-			"--iterations", "10"
+			"--runs", "5"
 		],
 		'subtests': [
 			{
@@ -100,7 +100,38 @@ config = [
 				'executable': "cpu/digits_demo.exe"
 			}
 		]
-	}
+	},
+	{
+		'name': "Power",
+		'args': [
+			"--log-dir", "logs/power",
+			"--workers", "28",
+			"--epochs", "1",
+			"--batch-size", "32",
+			"--hidden-layers", "16,128,512,1024,4096",
+			"--runs", "5",
+			"--power",
+			"--power-src", "C:\\Users\\chrum\\Downloads\\benchmark\\power.csv"
+		],
+		'subtests': [
+			{
+				'name': "CPU",
+				'executable': "cpu/digits_demo.exe"
+			},
+			{
+				'name': "CUDA/Float",
+				'executable': "cuda_float/digits_demo.exe"
+			},	
+			{
+				'name': "CUDA/Mixed",
+				'executable': "cuda_half/digits_demo.exe"
+			},
+			{
+				'name': "CUDA/WMMA",
+				'executable': "cuda_wmma/digits_demo.exe"
+			}
+		]
+	},
 ]
 
 import subprocess

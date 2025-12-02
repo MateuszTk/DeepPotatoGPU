@@ -40,8 +40,6 @@ private:
 		}
 		float energyWattHours = static_cast<float>(energy) / (3600.0f * 1000.0f);
 		return energyWattHours;
-		#else
-		throw std::runtime_error("CUDA is not available");
 		#endif
 	}
 
@@ -60,8 +58,6 @@ public:
 		}
 
 		lastEnergy = getTotalEnergyConsumption();
-		#else
-		throw std::runtime_error("CUDA is not available");
 		#endif
 	}
 
@@ -83,15 +79,13 @@ public:
 		}
 		return static_cast<float>(power) / 1000.0f;
 		#else
-		throw std::runtime_error("CUDA is not available");
+		return 0.0f;
 		#endif
 	}
 
 	void resetEnergyConsumption() override {
 		#ifdef CUDA_AVAILABLE
 		lastEnergy = getTotalEnergyConsumption();
-		#else
-		throw std::runtime_error("CUDA is not available");
 		#endif
 	}
 
@@ -101,7 +95,7 @@ public:
 		float energyConsumed = currentEnergy - lastEnergy;
 		return energyConsumed;
 		#else
-		throw std::runtime_error("CUDA is not available");
+		return 0.0f;
 		#endif
 	}
 };
@@ -111,55 +105,23 @@ private:
 	Timer timer;
 	float energy = 0.0f;
 	//const std::string linuxPath = "/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj";
-	const std::string windowsPath = "C:\\Users\\mateu\\Downloads\\hwlog.CSV";
+	std::string windowsPath = ".";
+	std::ifstream file;
+	int colIndex = -1;
+	std::string lastLine;
+	int columns = 0;
 
-public:
-	CPUStats() {
-		energy = 0.0f;
-		timer.start();
+	bool isLineComplete(std::string line) {
+		int commaCount = std::count(line.begin(), line.end(), ',');
+		return commaCount + 1 == columns;
 	}
 
-	float getPowerUsage() override {
-		static std::ifstream file;
-		file.open(windowsPath);
-		if (!file.is_open()) {
-			throw std::runtime_error("Failed to open power log file");
-		}
-
-		std::string header;
-		std::getline(file, header);
-		std::string lastLine;
-		std::string line;
-		while (std::getline(file, line)) {
-			lastLine = line;
-		}
-		file.close();
-
-		if (lastLine.empty()) {
-			throw std::runtime_error("Power log file is empty");
-		}
-
-		const std::string column = "\"CPU Package Power [W]\"";
-		int colIndex = -1;
-		size_t pos = 0;
+	float readColumn(std::string line) {
+		int pos = 0;
 		int currentIndex = 0;
-		while ((pos = header.find(',', 0)) != std::string::npos) {
-			std::string col = header.substr(0, pos);
-			if (col == column) {
-				colIndex = currentIndex;
-				break;
-			}
-			header = header.substr(pos + 1);
-			currentIndex++;
-		}
-		if (colIndex == -1) {
-			throw std::runtime_error("Column not found in power log file");
-		}
-		pos = 0;
-		currentIndex = 0;
-		while ((pos = lastLine.find(',', 0)) != std::string::npos) {
+		while ((pos = line.find(',', 0)) != std::string::npos) {
 			if (currentIndex == colIndex) {
-				std::string valueStr = lastLine.substr(0, pos);
+				std::string valueStr = line.substr(0, pos);
 				try {
 					float value = std::stof(valueStr);
 					return value;
@@ -168,11 +130,78 @@ public:
 					throw std::runtime_error("Invalid power value in log file");
 				}
 			}
-			lastLine = lastLine.substr(pos + 1);
+			line = line.substr(pos + 1);
 			currentIndex++;
 		}
 
-		throw std::runtime_error("Power value not found in log file");
+		throw std::runtime_error("Column index out of range in log file");
+	}
+
+public:
+	CPUStats() {
+		energy = 0.0f;
+		timer.start();
+	}
+
+	~CPUStats() override {
+		if (file.is_open()) {
+			file.close();
+		}
+	}
+
+	void setMeasurementFile(const std::string& path) {
+		windowsPath = path;
+	}
+
+	float getPowerUsage() override {
+		if (!file.is_open()){
+			file.open(windowsPath);
+			if (!file.is_open()) {
+				throw std::runtime_error("Failed to open power log file");
+			}
+
+			std::string header;
+			std::getline(file, header);
+
+			columns = std::count(header.begin(), header.end(), ',') + 1;
+
+			const std::string column = "\"CPU Package Power [W]\"";
+			colIndex = -1;
+			size_t pos = 0;
+			int currentIndex = 0;
+			while ((pos = header.find(',', 0)) != std::string::npos) {
+				std::string col = header.substr(0, pos);
+				if (col == column) {
+					colIndex = currentIndex;
+					break;
+				}
+				header = header.substr(pos + 1);
+				currentIndex++;
+			}
+			if (colIndex == -1) {
+				throw std::runtime_error("Column not found in power log file");
+			}
+		}
+
+		std::string line;
+		while (std::getline(file, line)) {
+			if (isLineComplete(line)) {
+				lastLine = line;
+			}
+			else {
+				// move back to the beginning of the incomplete line
+				file.seekg(-static_cast<int>(line.length()), std::ios::cur);
+				break;
+			}
+		}
+
+		file.clear();
+
+		if (lastLine.empty()) {
+			throw std::runtime_error("Power log file is empty");
+		}
+		
+		return readColumn(lastLine);
 	}
 
 	void resetEnergyConsumption() override {

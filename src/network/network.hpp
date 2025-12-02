@@ -349,7 +349,14 @@ public:
 				}
 			}
 			weights(index.y, index.x) += weightUpdate;
-			biases(index.y) += biasUpdate;
+			// Update bias only once per neuron
+			if (index.x == 0) {
+				biases(index.y) += biasUpdate;
+			}
+
+			if constexpr (!std::is_same<float, lowp_t>::value) {
+				weightsLow(index.y, index.x) = weights(index.y, index.x);
+			}
 
 			#else
 
@@ -363,11 +370,6 @@ public:
 			}
 			biases(index.y) += biasUpdate;
 			#endif
-
-			if constexpr (!std::is_same<float, lowp_t>::value) {
-				//weightsLow(index.y, index.x) = __float2half(weights(index.y, index.x));
-				weightsLow(index.y, index.x) = weights(index.y, index.x);
-			}
 		}
 	};
 
