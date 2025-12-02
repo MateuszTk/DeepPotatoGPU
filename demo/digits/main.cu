@@ -412,6 +412,8 @@ int main(int argc, char** argv) {
 							std::cout << "Epoch: " << epoch << ", Set: " << set << "/" << sets << ", Samples: "
 								<< (set + 1) * network.getMaximumTrainBatchSize() << "/" << sets * network.getMaximumTrainBatchSize() << "\n";
 							if (config.power) {
+								statsCPU->tick();
+								statsGPU->tick();
 								std::cout << "Power usage: CPU: " << statsCPU->getPowerUsage() << " W, GPU: " << statsGPU->getPowerUsage() << " W\n";
 								std::cout << "Energy usage: " << statsCPU->getEnergyConsumption() + statsGPU->getEnergyConsumption() << " Wh\n";
 							}
@@ -448,8 +450,6 @@ int main(int argc, char** argv) {
 					std::cout << "Epoch: " << epoch << ", Samples: " << sets * network.getMaximumTrainBatchSize() * (epoch + 1) << "\n";
 					std::cout << " * Training speed: " << (epoch - lastEpoch) * sets * network.getMaximumTrainBatchSize() / epochTimer.stop(false) << " samples/s\n";
 					lastEpoch = epoch;
-					statsCPU->tick();
-					statsGPU->tick();
 					epochTimer.start();
 				}
 

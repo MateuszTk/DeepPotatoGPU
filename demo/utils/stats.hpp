@@ -40,6 +40,8 @@ private:
 		}
 		float energyWattHours = static_cast<float>(energy) / (3600.0f * 1000.0f);
 		return energyWattHours;
+		#else
+		return 0.0f;
 		#endif
 	}
 
@@ -104,7 +106,9 @@ class CPUStats : public Stats {
 private:
 	Timer timer;
 	float energy = 0.0f;
-	//const std::string linuxPath = "/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj";
+	float power = 0.0f;
+	float startEnergy = 0.0f;
+	const std::string linuxPath = "/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj";
 	std::string windowsPath = ".";
 	std::ifstream file;
 	int colIndex = -1;
@@ -137,9 +141,21 @@ private:
 		throw std::runtime_error("Column index out of range in log file");
 	}
 
+	float readRAPL() {
+		std::ifstream energyFile(linuxPath);
+		if (!energyFile.is_open()) {
+			throw std::runtime_error("Failed to open RAPL energy file");
+		}
+		unsigned long long energyMicroJoules;
+		energyFile >> energyMicroJoules;
+		energyFile.close();
+		float energyWh = static_cast<float>(energyMicroJoules) / (3600.0f * 1000000.0f);
+		return energyWh;
+	}
+
 public:
 	CPUStats() {
-		energy = 0.0f;
+		resetEnergyConsumption();
 		timer.start();
 	}
 
@@ -154,6 +170,7 @@ public:
 	}
 
 	float getPowerUsage() override {
+		#ifdef _WIN32
 		if (!file.is_open()){
 			file.open(windowsPath);
 			if (!file.is_open()) {
@@ -202,18 +219,30 @@ public:
 		}
 		
 		return readColumn(lastLine);
+		#else
+		return power;
+		#endif
 	}
 
 	void resetEnergyConsumption() override {
 		energy = 0.0f;
+		startEnergy = readRAPL();
+		power = 0.0f;
 		timer.start();
 	}
 
 	void tick() override {
-		float power = getPowerUsage();
+		#ifdef _WIN32
 		float timeElapsed = timer.stop(false);
-		energy += power * (timeElapsed / 3600.0f);
+		float currPower = getPowerUsage();
+		energy += currPower * (timeElapsed / 3600.0f);
 		timer.start();
+		#else
+		float timeElapsed = timer.stop(false);
+		float energyWh = readRAPL();
+		energy = energyWh - startEnergy;
+		power = energy / (timeElapsed / 3600.0f);
+		#endif
 	}
 
 	float getEnergyConsumption() override {
