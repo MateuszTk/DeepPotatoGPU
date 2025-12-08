@@ -106,7 +106,6 @@ public:
 				if (maxIndex == testLabel) {
 					correct++;
 				}
-				//std::cout << "Sample " << (input + i) << ": Label: " << testLabel << ", Predicted: " << maxIndex << '\n';
 			}
 		}
 
@@ -119,8 +118,8 @@ public:
 struct TestConfig {
 	std::string logDir = "log/";
 	std::string powerSrc = "";
-	std::vector<uint32_t> workerCounts = { 4 };// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
-	std::vector<uint32_t> hiddenLayerSizes = { 128 }; //{ 4, 6, 8, 10, 12, 14, 16, 18, 20, 28, 32, 64, 128, 256, 512, 768, 1024 };
+	std::vector<uint32_t> workerCounts = { 4 };
+	std::vector<uint32_t> hiddenLayerSizes = { 128 };
 	int epochs = 10;
 	int batchSize = 30;
 	int runs = 1;
@@ -400,9 +399,9 @@ int main(int argc, char** argv) {
 						updateTotal += timeru.stop(false);
 						iters++;
 
-						if (config.testSet) {
-							//loss += network.loss(exec, lossMat, trainingDataSet.output, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
-						}
+						//if (config.testSet) {
+						//	loss += network.loss(exec, lossMat, trainingDataSet.output, network.getMaximumTrainBatchSize(), set * network.getMaximumTrainBatchSize());
+						//}
 
 						if (set % (sets / 10) == 0) {
 							float diffMs = setTimer.stop(false) * 1000.0f;
@@ -431,8 +430,6 @@ int main(int argc, char** argv) {
 							logFile << "\n";
 
 							if (config.verbose) {
-								//std::cout << " * Training speed: " << (set * network.getMaximumTrainBatchSize()) / diff_ms << " samples/s\n";
-
 								std::cout << "Forward time avg: " << forwardTotal / iters * 1000.0 << " ms, "
 									<< "Backward time avg: " << backwardTotal / iters * 1000.0 << " ms, "
 									<< "Update time avg: " << updateTotal / iters * 1000.0 << " ms\n";

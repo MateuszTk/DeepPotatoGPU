@@ -2,6 +2,13 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 
+plt.rcParams["font.size"] = 15
+plt.rcParams["axes.titlesize"] = 18
+plt.rcParams["axes.labelsize"] = 16
+plt.rcParams["legend.fontsize"] = 15
+plt.rcParams["xtick.labelsize"] = 15
+plt.rcParams["ytick.labelsize"] = 15
+
 def executor_label(exec_type, data_type, use_wmma):
     label = exec_type.replace("class ", "").replace("Executor", "").strip()
     if data_type == "float":
@@ -46,7 +53,7 @@ def parse_filename(filename):
     if lowp_type == "struct ":
         lowp_type = "struct __half"
         index_offset = 2
-    # Check if the lowp_type is 'struct __half' or 'float'
+    # check if the lowp_type is 'struct __half' or 'float'
     use_wmma = int(parts[11 + index_offset])
     exec_type = parts[12 + index_offset]
 
@@ -66,7 +73,7 @@ def parse_filename(filename):
         "exec_type": exec_type
     }
 
-def load_time_data(directory, use_wmma, lowp_type, exec_type, threads=-1, hidden_layer_1=-1):
+def load_time_data(directory, use_wmma, lowp_type, exec_type, threads = -1, hidden_layer_1 = -1):
     end_of_filename = f"_0_{lowp_type}_{use_wmma}_{exec_type}_.csv"
     if threads >= 0:
         end_of_filename = f"_{threads}" + end_of_filename
@@ -79,16 +86,15 @@ def load_time_data(directory, use_wmma, lowp_type, exec_type, threads=-1, hidden
             df.columns = ["samplesTotal", "diff_ms", "forwardAvg", "backwardAvg", "updateAvg", "testAccuracy", "loss"]
             all_results.append(df)
     if not all_results:
-        print("No results found in the directory. end_of_filename:", end_of_filename)
+        print("No results. end_of_filename:", end_of_filename)
         return None
     combined_df = pd.concat(all_results)
     grouped = combined_df.groupby("samplesTotal")
     averaged_df = grouped.mean().reset_index()
-    # attach std columns for time metrics
     std_df = grouped.std().reset_index()
     for col in ["diff_ms", "forwardAvg", "backwardAvg", "updateAvg"]:
         averaged_df[col + "_std"] = std_df[col]
-    averaged_df = averaged_df.drop(columns=["testAccuracy", "loss"])
+    averaged_df = averaged_df.drop(columns = ["testAccuracy", "loss"])
     return averaged_df
 
 def load_accuracy_loss_data(directory, use_wmma, lowp_type, exec_type, threads=-1):
@@ -103,7 +109,7 @@ def load_accuracy_loss_data(directory, use_wmma, lowp_type, exec_type, threads=-
             df.columns = ["samplesTotal", "diff_ms", "forwardAvg", "backwardAvg", "updateAvg", "testAccuracy", "loss"]
             all_results.append(df)
     if not all_results:
-        print("No accuracy/loss results found in the directory. end_of_filename:", end_of_filename)
+        print("No accuracy results found. end_of_filename:", end_of_filename)
         return None
     combined_df = pd.concat(all_results)
     grouped_df = combined_df.groupby("samplesTotal")
@@ -113,20 +119,19 @@ def load_accuracy_loss_data(directory, use_wmma, lowp_type, exec_type, threads=-
         averaged_df[col + "_std"] = std_df[col]
     return averaged_df
 
-def load_and_average_results(directory, use_wmma, lowp_type, exec_type, threads=-1):
+def load_and_average_results(directory, use_wmma, lowp_type, exec_type, threads = -1):
     averaged_time_df = load_time_data(directory, use_wmma, lowp_type, exec_type, threads)
     averaged_accuracy_df = load_accuracy_loss_data(directory, use_wmma, lowp_type, exec_type, threads)
 
     if averaged_time_df is None or averaged_accuracy_df is None:
         return None
 
-    merged_df = averaged_time_df.merge(averaged_accuracy_df[["samplesTotal", "testAccuracy", "loss","testAccuracy_std", "loss_std"]], on="samplesTotal", how="left")
+    merged_df = averaged_time_df.merge(averaged_accuracy_df[["samplesTotal", "testAccuracy", "loss","testAccuracy_std", "loss_std"]], on = "samplesTotal", how = "left")
 
     return merged_df
 
-def load_threading_data():
+def load_threading_data(directory):
     print("Loading threading data...")
-    directory = "logs\\threading"
     threading_results = [(thread_cnt, load_time_data(directory, 0, "float", "class CPUExecutor", thread_cnt)) for thread_cnt in range(0, 33)]
     threading_results = [(thread_cnt, df) for thread_cnt, df in threading_results if df is not None and not df.empty]
     if not threading_results:
@@ -159,7 +164,7 @@ def load_power_data(directory, use_wmma, lowp_type, exec_type, hidden_layer_1):
         properties = parse_filename(filename)
         if filename.startswith("log_digits_") and filename.endswith(end_of_filename) and properties["use_wmma"] == use_wmma and properties["lowp_type"] == lowp_type and properties["exec_type"] == exec_type and (properties["hidden_layer_1"] == hidden_layer_1 or hidden_layer_1 == -1):
             filepath = os.path.join(directory, filename)
-            df = pd.read_csv(filepath, sep=",")
+            df = pd.read_csv(filepath, sep = ",")
             total_energy = df[df['Component'] == 'Total']['Energy (Wh)'].values[0]
             total_time = df[df['Component'] == 'Total']['Time (s)'].values[0]
             average_power = df[df['Component'] == 'Total']['Average Power (W)'].values[0]
@@ -177,7 +182,7 @@ def load_power_data(directory, use_wmma, lowp_type, exec_type, hidden_layer_1):
                 "gpu_power_W": gpu_power
             })
     if not all_results:
-        print("No power results found in the directory. end_of_filename:", end_of_filename)
+        print("No power results found. end_of_filename:", end_of_filename)
         return None
     combined_df = pd.DataFrame(all_results)
     averaged_df = combined_df.mean().to_dict()
@@ -210,8 +215,8 @@ def plot_results(results_list, labels):
         print("No data to plot.")
         return
 
-    # Time Metrics of Full Runs
-    plt.figure(figsize=(12, 8))
+    # time metrics of full runs
+    plt.figure(figsize = (12, 8))
     bar_width = 0.15
     groups = ["diff_ms", "forwardAvg", "backwardAvg", "updateAvg"]
     group_labels = ["Całkowity czas", "Propagacja w przód", "Propagacja wstecz", "Aktualizacja"]
@@ -224,11 +229,11 @@ def plot_results(results_list, labels):
             plt.bar(
                 [x_val + offset for x_val in x],
                 means,
-                yerr=stds,
-                width=bar_width,
-                label=label,
-                color=get_label_color(label),
-                error_kw={"elinewidth": 1, "capsize": 3, "capthick": 1}
+                yerr = stds,
+                width = bar_width,
+                label = label,
+                color = get_label_color(label),
+                error_kw = {"elinewidth": 1, "capsize": 3, "capthick": 1}
             )
     plt.title("Czas treningu")
     plt.ylabel("Czas (s)")
@@ -238,8 +243,8 @@ def plot_results(results_list, labels):
     plt.tight_layout()
     plt.savefig("time_metrics_full_runs.png")
 
-    # Print Time Metrics Table with standard deviations
-    print("Time Metrics of Full Runs (s) with ±std:")
+    # print time metrics table
+    print("Time metrics of full runs")
     print(f"{'Configuration':<30} {'Total Time':<20} {'Forward Pass':<20} {'Backward Pass':<20} {'Update':<20}")
     for df, label in zip(results_list, labels):
         if df is not None:
@@ -255,14 +260,14 @@ def plot_results(results_list, labels):
 
             print(
                 f"{label:<30} "
-                f"{total_mean:>6.2f} ± {total_std:<10.2f} "
-                f"{forward_mean:>6.2f} ± {forward_std:<10.2f} "
-                f"{backward_mean:>6.2f} ± {backward_std:<10.2f} "
-                f"{update_mean:>6.2f} ± {update_std:<10.2f}"
+                f"{total_mean:>6.2f} +- {total_std:<10.2f} "
+                f"{forward_mean:>6.2f} +- {forward_std:<10.2f} "
+                f"{backward_mean:>6.2f} +- {backward_std:<10.2f} "
+                f"{update_mean:>6.2f} +- {update_std:<10.2f}"
             )
 
-    # Print Time Metrics as Speedup Multipliers
-    print("\nTime Metrics as Speedup Multipliers of CPU Float:")
+    # print time metrics as speedup multipliers
+    print("\nTime metrics as speedup multipliers of CPU float:")
     cpu_float_df = results_list[0]  # Assuming first is CPU Float
     for df, label in zip(results_list, labels):
         if df is not None and cpu_float_df is not None:
@@ -272,11 +277,11 @@ def plot_results(results_list, labels):
             update_time_ratio = (cpu_float_df["updateAvg"].iloc[-1] / df["updateAvg"].iloc[-1])
             print(f"{label:<30} {total_time_ratio:<15.2f} {forward_time_ratio:<15.2f} {backward_time_ratio:<15.2f} {update_time_ratio:<15.2f}")
 
-    # Test Accuracy Over Samples Total
-    plt.figure(figsize=(12, 8))
+    # test accuracy over samples total
+    plt.figure(figsize = (12, 8))
     for df, label in zip(results_list, labels):
         if df is not None:
-            plt.plot(df["samplesTotal"], df["testAccuracy"] * 100, label=label, color=get_label_color(label))
+            plt.plot(df["samplesTotal"], df["testAccuracy"] * 100, label = label, color = get_label_color(label))
     plt.title("Dokładność predykcji w zależności od liczby próbek")
     plt.xlabel("Liczba próbek")
     plt.ylabel("Dokładność predykcji (%)")
@@ -285,9 +290,9 @@ def plot_results(results_list, labels):
     plt.tight_layout()
     plt.savefig("test_accuracy_over_samples.png")
 
-    # Table of Accuracy for selected sample counts
+    # table of accuracy for selected sample counts
     sample_counts = [100000, 300000, 600000]
-    print("\nTest Accuracy at Selected Sample Counts:")
+    print("\nTest accuracy at selected sample counts:")
     print(f"{'Configuration':<30} " + " ".join([f"{sc:<25}" for sc in sample_counts]))
     for df, label in zip(results_list, labels):
         if df is not None:
@@ -296,14 +301,14 @@ def plot_results(results_list, labels):
                 closest_idx = (df["samplesTotal"] - sc).abs().idxmin()
                 accuracy = df["testAccuracy"].iloc[closest_idx]
                 accuracy_std = df["testAccuracy_std"].iloc[closest_idx] if "testAccuracy_std" in df.columns else 0.0
-                accuracies.append(f"{accuracy * 100:.2f}% ± {accuracy_std * 100:.2f}%")
+                accuracies.append(f"{accuracy * 100:.2f}% +- {accuracy_std * 100:.2f}%")
             print(f"{label:<30} " + " ".join([f"{acc:<25}" for acc in accuracies]))
 
-    # Test Accuracy Over Time
-    plt.figure(figsize=(12, 8))
+    # test accuracy over time
+    plt.figure(figsize = (12, 8))
     for df, label in zip(results_list, labels):
         if df is not None:
-            plt.plot(df["diff_ms"], df["testAccuracy"] * 100, label=label, color=get_label_color(label))
+            plt.plot(df["diff_ms"], df["testAccuracy"] * 100, label = label, color = get_label_color(label))
     plt.title("Dokładność predykcji w zależności od czasu treningu")
     plt.xlabel("Czas (ms)")
     plt.ylabel("Dokładność predykcji (%)")
@@ -315,16 +320,14 @@ def plot_results(results_list, labels):
     plt.show()
 
 def plot_threading_results(threading_results):
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize = (12, 8))
     x_values = [tr[0] for tr in threading_results]
     y_values = [tr[1]["diff_ms"].iloc[-1] / 1000 for tr in threading_results]
     y_err = [
-        (tr[1]["diff_ms_std"].iloc[-1] / 1000) if "diff_ms_std" in tr[1].columns else 0
-        for tr in threading_results
+        (tr[1]["diff_ms_std"].iloc[-1] / 1000) if "diff_ms_std" in tr[1].columns else 0 for tr in threading_results
     ]
-    # Use errorbar to display standard deviation
-    plt.errorbar(x_values, y_values, yerr=y_err, label="Time (s)", marker='o', linestyle='-', capsize=3)
-    plt.xlabel("Number of Threads")
+    plt.errorbar(x_values, y_values, yerr = y_err, label="Time (s)", marker = 'o', linestyle = '-', capsize = 3)
+    plt.xlabel("Number of threads")
     plt.ylabel("Time (s)")
     plt.title("Training time with multithreading")
     plt.legend()
@@ -332,8 +335,8 @@ def plot_threading_results(threading_results):
     plt.tight_layout()
     plt.savefig("threading_results.png")
 
-    # Print Threading Results Table With Speedup
-    plt.figure(figsize=(12, 8))
+    # print threading results table with speedup
+    plt.figure(figsize = (12, 8))
     speedups = []
     speedup_err = []
     print("Threading Results:")
@@ -345,12 +348,12 @@ def plot_threading_results(threading_results):
             speedup = (threading_results[0][1]["diff_ms"].iloc[-1] / 1000) / time
             T_ref = threading_results[0][1]["diff_ms"].iloc[-1] / 1000
             s_err = (T_ref / time) * (time_std / time) if time > 0 else 0.0
-           
-            print(f"{i:<10} {time:<15.2f} ± {time_std:<10.2f} {speedup:<15.2f} ± {s_err:<10.2f}")
+            
+            print(f"{i:<10} {time:<15.2f} +- {time_std:<10.2f} {speedup:<15.2f} +- {s_err:<10.2f}")
             speedups.append(speedup)
             speedup_err.append(s_err)
 
-    plt.errorbar(x_values, speedups, yerr=speedup_err, label="Współczynnik przyspieszenia", marker='o', linestyle='-', color='orange', capsize=3)
+    plt.errorbar(x_values, speedups, yerr = speedup_err, label = "Współczynnik przyspieszenia", marker = 'o', linestyle = '-', color = 'orange', capsize = 3)
     plt.xlabel("Liczba wątków")
     plt.ylabel("Współczynnik przyspieszenia")
     plt.title("Współczynnik przyspieszenia treningu w zależności od liczby wątków CPU")
@@ -361,7 +364,7 @@ def plot_threading_results(threading_results):
     plt.show()
 
 def plot_scaling_data(all_results_total):
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize = (12, 8))
     for result in all_results_total:
         if result is not None:
             hidden_layers = result["hidden_layers"]
@@ -374,17 +377,17 @@ def plot_scaling_data(all_results_total):
                 (d["diff_ms_std"].iloc[-1] / 1000) if "diff_ms_std" in d.columns else 0
                 for d in df
             ]
-            plt.errorbar(hidden_layers, [d["diff_ms"].iloc[-1] / 1000 for d in df], yerr=y_err, label=label, marker='o', color=get_label_color(label))
-    plt.xlabel("Hidden Layer Size")
-    plt.ylabel("Time (s)")
-    plt.title("Training time depending on the hidden layer size")
+            plt.errorbar(hidden_layers, [d["diff_ms"].iloc[-1] / 1000 for d in df], yerr = y_err, label = label, marker = 'o', color = get_label_color(label))
+    plt.xlabel("Rozmiar warstwy ukrytej")
+    plt.ylabel("Czas (s)")
+    plt.title("Czas treningu w zależności od rozmiaru warstwy ukrytej")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("scaling_results.png")
 
-    # Speedup factor plot
-    plt.figure(figsize=(12, 8))
+    # speedup factor plot
+    plt.figure(figsize = (12, 8))
     cpu_data = None
     for result in all_results_total:
         if result is not None and result["exec_type"] == "class CPUExecutor":
@@ -419,14 +422,14 @@ def plot_scaling_data(all_results_total):
                         err = 0.0
                     speedup.append(val)
                     speedup_err.append(err)
-                plt.errorbar(hidden_layers, speedup, yerr=speedup_err, label=label, marker='o', linestyle='-', color=get_label_color(label), capsize=3)
+                plt.errorbar(hidden_layers, speedup, yerr = speedup_err, label = label, marker = 'o', linestyle = '-', color = get_label_color(label), capsize = 3)
                 max_speedups[label] = {"max_speedup": max(speedup), "layer_size": hidden_layers[speedup.index(max(speedup))], "max_time": times[speedup.index(max(speedup))], "max_time_std": time_stds[speedup.index(max(speedup))], "max_speedup_std": speedup_err[speedup.index(max(speedup))]}
                 min_speedups[label] = {"min_speedup": min(speedup), "layer_size": hidden_layers[speedup.index(min(speedup))], "min_time": times[speedup.index(min(speedup))], "min_time_std": time_stds[speedup.index(min(speedup))], "min_speedup_std": speedup_err[speedup.index(min(speedup))]}
 
-    plt.xlabel("Hidden layer size")
-    plt.ylabel("Speedup factor")
+    plt.xlabel("Rozmiar warstwy ukrytej")
+    plt.ylabel("Współczynnik przyspieszenia")
     plt.legend()
-    plt.title("Speedup relative to CPU float baseline")
+    plt.title("Przyspieszenie względem CPU float")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig("scaling_results_speedup.png")
@@ -443,7 +446,6 @@ def plot_scaling_data(all_results_total):
         print(f"{label:<50} {info['min_speedup']:<15.2f} {info['layer_size']:<15} {info['min_time'] / 1000:<15.2f} {info['min_time_std'] / 1000:<15.2f} {info['min_speedup_std']:<15.2f}")
 
     # WMMA vs CUDA Float per-layer speedup table
-    # Find CUDA Float and WMMA Half datasets
     cuda_float = None
     wmma_half = None
     for result in all_results_total:
@@ -454,11 +456,9 @@ def plot_scaling_data(all_results_total):
                 wmma_half = result
 
     if cuda_float is not None and wmma_half is not None:
-        # Intersect hidden layer sizes to ensure alignment
         hidden_cf = cuda_float["hidden_layers"]
         hidden_wm = wmma_half["hidden_layers"]
         common_hidden = [h for h in hidden_cf if h in hidden_wm]
-        # Build maps from hidden size to final diff_ms value
         cf_map = {}
         for h, df in zip(cuda_float["hidden_layers"], cuda_float["data"]):
             if h in common_hidden:
@@ -467,7 +467,7 @@ def plot_scaling_data(all_results_total):
         for h, df in zip(wmma_half["hidden_layers"], wmma_half["data"]):
             if h in common_hidden:
                 wm_map[h] = df["diff_ms"].iloc[-1]
-        print("\nWMMA vs CUDA Float Speedup (CUDA Float time / WMMA Half time):")
+        print("\nWMMA vs CUDA Float speedup (CUDA Float time / WMMA Half time):")
         header = f"{'Hidden':<10} {'CUDA Float (ms)':<18} {'WMMA Half (ms)':<18} {'Speedup':<10}"
         print(header)
         print('-' * len(header))
@@ -479,12 +479,11 @@ def plot_scaling_data(all_results_total):
             speedup = cf_t / wm_t
             print(f"{h:<10} {cf_t:<18.2f} {wm_t:<18.2f} {speedup:<10.3f}")
     else:
-        print("\nWMMA vs CUDA Float speedup table skipped (required data missing).")
+        print("\nWMMA vs CUDA Float speedup table skipped")
 
     plt.show()
 
 def plot_power_data(all_power_results):
-    # Collect unique hidden layer sizes across all configurations
     all_hidden = set()
     for result in all_power_results:
         if result is not None:
@@ -500,9 +499,8 @@ def plot_power_data(all_power_results):
 
     bar_width = 0.8 / n_cfg
 
-    # Build per-config energy maps
     config_energy_maps = []
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize = (12, 8))
     for i, result in enumerate(valid_results):
         power_data = result["power_data"]
         use_wmma = result["use_wmma"]
@@ -521,10 +519,10 @@ def plot_power_data(all_power_results):
         gpu_energies = [gpu_map_mean.get(h, 0) for h in hidden_layers_sorted]
         cpu_stds = [cpu_map_std.get(h, 0) for h in hidden_layers_sorted]
         gpu_stds = [gpu_map_std.get(h, 0) for h in hidden_layers_sorted]
-        offsets = [x - 0.4 + bar_width/2 + i * bar_width for x in x_indices]
-        plt.bar(offsets, cpu_energies, yerr=cpu_stds, width=bar_width, label=f"{label} (CPU)", color=get_label_color(label), alpha=0.7, error_kw={"elinewidth":1, "capsize":3, "capthick":1})
+        offsets = [x - 0.4 + bar_width / 2 + i * bar_width for x in x_indices]
+        plt.bar(offsets, cpu_energies, yerr = cpu_stds, width = bar_width, label = f"{label} (CPU)", color=get_label_color(label), alpha = 0.7, error_kw = {"elinewidth":1, "capsize":3, "capthick":1})
         if any(gpu_energies):
-            plt.bar(offsets, gpu_energies, yerr=gpu_stds, width=bar_width, bottom=cpu_energies, label=f"{label} (GPU)", color=get_label_color(label), alpha=0.35, hatch='//', error_kw={"elinewidth":1, "capsize":3, "capthick":1})
+            plt.bar(offsets, gpu_energies, yerr=gpu_stds, width=bar_width, bottom=cpu_energies, label = f"{label} (GPU)", color=get_label_color(label), alpha = 0.35, hatch = '//', error_kw = {"elinewidth": 1, "capsize": 3, "capthick": 1})
 
     plt.xlabel("Hidden Layer Size")
     plt.ylabel("Energy (Wh)")
@@ -542,7 +540,7 @@ def plot_power_data(all_power_results):
     plt.tight_layout()
     plt.savefig("power_scaling_results_stacked.png")
 
-    # Relative energy plot (stacked CPU/GPU percentages vs CPU baseline total energy)
+    # relative energy plot
     cpu_baseline_total = None
     cpu_baseline_label = None
     for label, cpu_map, gpu_map, total_map, _, _, _ in config_energy_maps:
@@ -588,26 +586,19 @@ def plot_power_data(all_power_results):
             cpu_perc_std.append(cpu_pct_std)
             gpu_perc_std.append(gpu_pct_std)
             total_perc_std.append(total_pct_std)
-        offsets = [x - 0.4 + bar_width/2 + i * bar_width for x in x_indices]
-        plt.bar(offsets, cpu_perc, width=bar_width, label=f"{label} (CPU %)", color=get_label_color(label), alpha=0.7)
-        plt.bar(offsets, gpu_perc, width=bar_width, bottom=cpu_perc, label=f"{label} (GPU %)", color=get_label_color(label), alpha=0.35, hatch='//')
-        # annotate total percent at top of stack
+        offsets = [x - 0.4 + bar_width / 2 + i * bar_width for x in x_indices]
+        plt.bar(offsets, cpu_perc, width = bar_width, label = f"{label} (CPU %)", color = get_label_color(label), alpha = 0.7)
+        plt.bar(offsets, gpu_perc, width = bar_width, bottom = cpu_perc, label = f"{label} (GPU %)", color = get_label_color(label), alpha = 0.35, hatch = '//')
         for x_off, tot in zip(offsets, total_perc):
-            plt.text(x_off, tot, f"{tot:.1f}%", ha='center', va='bottom', fontsize=8)
-        # add standard deviation markers (error bars) for CPU%, GPU%, and total%
-        # CPU% error bars – centered on CPU% heights
-        #plt.errorbar(offsets, cpu_perc, yerr=cpu_perc_std, fmt='none', ecolor='black', elinewidth=1, capsize=3, capthick=1)
-        # GPU% component error bars – centered on (CPU% + GPU%) but using GPU% std relative to baseline
-        #plt.errorbar(offsets, [c+g for c, g in zip(cpu_perc, gpu_perc)], yerr=gpu_perc_std, fmt='none', ecolor='black', elinewidth=1, capsize=3, capthick=1)
-        # Total% error bars – alternative marker in a subtle color
-        plt.errorbar(offsets, total_perc, yerr=total_perc_std, fmt='none', ecolor='gray', elinewidth=1, capsize=3, capthick=1)
+            plt.text(x_off, tot, f"{tot:.1f}%", ha = 'center', va = 'bottom', fontsize = 8)
+        plt.errorbar(offsets, total_perc, yerr = total_perc_std, fmt = 'none', ecolor = 'gray', elinewidth = 1, capsize = 3, capthick = 1)
 
     plt.xlabel("Rozmiar warstwy ukrytej")
     plt.ylabel(f"Procent zużytej energii względem {cpu_baseline_label}")
     plt.title(f"Procent zużytej energii względem {cpu_baseline_label}")
-    plt.xticks(x_indices, hidden_layers_sorted, rotation=45)
-    plt.axhline(100, color='gray', linestyle='--', linewidth=1)
-    # Consolidated legend without duplicates
+    plt.xticks(x_indices, hidden_layers_sorted, rotation = 45)
+    plt.axhline(100, color = 'gray', linestyle = '--', linewidth = 1)
+
     handles, labels_leg = plt.gca().get_legend_handles_labels()
     seen = set()
     filtered = []
@@ -615,12 +606,12 @@ def plot_power_data(all_power_results):
         if l not in seen:
             filtered.append((h, l))
             seen.add(l)
-    plt.legend([h for h, _ in filtered], [l for _, l in filtered], fontsize=9)
-    plt.grid(axis='y', linestyle='--', alpha=0.6)
+    plt.legend([h for h, _ in filtered], [l for _, l in filtered], fontsize = 9)
+    plt.grid(axis = 'y', linestyle = '--', alpha = 0.6)
     plt.tight_layout()
     plt.savefig("power_scaling_results_percent_cpu.png")
 
-    # Print table
+    # print table
     print("Power Consumption Data (Wh) with std:")
     header = f"{'Config':<30} {'Layer':<8} {'CPU (Wh)':>18} {'GPU (Wh)':>18} {'Total (Wh)':>18}"
     print(header)
@@ -637,20 +628,20 @@ def plot_power_data(all_power_results):
                 continue
             print(
                 f"{label:<30} {h:<8} "
-                f"{cpu_e:>6.4f} ± {cpu_std:<10.4f} "
-                f"{gpu_e:>6.4f} ± {gpu_std:<10.4f} "
-                f"{total_e:>6.4f} ± {total_std:<10.4f}"
+                f"{cpu_e:>6.4f} +- {cpu_std:<10.4f} "
+                f"{gpu_e:>6.4f} +- {gpu_std:<10.4f} "
+                f"{total_e:>6.4f} +- {total_std:<10.4f}"
             )
 
     plt.show()
 
 if __name__ == "__main__":
-    # Accuracy/time results
+    # accuracy/time results
     directory = "logs\\accuracy"
-    averaged_results_cpu_float = load_and_average_results(directory, use_wmma=0, lowp_type="float", exec_type="class CPUExecutor")
-    averaged_results_cuda_float = load_and_average_results(directory, use_wmma=0, lowp_type="float", exec_type="class CUDAExecutor")
-    averaged_results_cuda_half = load_and_average_results(directory, use_wmma=0, lowp_type="struct __half", exec_type="class CUDAExecutor")
-    averaged_results_wmma_half = load_and_average_results(directory, use_wmma=1, lowp_type="struct __half", exec_type="class CUDAExecutor")
+    averaged_results_cpu_float = load_and_average_results(directory, use_wmma = 0, lowp_type = "float", exec_type = "class CPUExecutor")
+    averaged_results_cuda_float = load_and_average_results(directory, use_wmma = 0, lowp_type = "float", exec_type = "class CUDAExecutor")
+    averaged_results_cuda_half = load_and_average_results(directory, use_wmma = 0, lowp_type = "struct __half", exec_type = "class CUDAExecutor")
+    averaged_results_wmma_half = load_and_average_results(directory, use_wmma = 1, lowp_type = "struct __half", exec_type = "class CUDAExecutor")
 
     results_list = [
         averaged_results_cpu_float,
@@ -666,27 +657,27 @@ if __name__ == "__main__":
     ]
     plot_results(results_list, labels)
 
-    # Threading results
-    threading_results = load_threading_data()
+    # threading results
+    threading_results = load_threading_data(directory = "logs\\threading")
     if threading_results:
         plot_threading_results(threading_results)
 
-    # Scaling results
+    # scaling results
     scaling_directory = "logs\\scaling"
     hidden_layer_sizes = [4, 6, 8, 10, 12, 14, 16, 18, 20, 28, 32, 64, 128, 256, 512, 768, 1024, 2048]
-    scaling_data_cuda_float = load_scaling_data(scaling_directory, use_wmma=0, lowp_type="float", exec_type="class CUDAExecutor", hidden_layers=hidden_layer_sizes)
-    scaling_data_cuda_wmma_half = load_scaling_data(scaling_directory, use_wmma=1, lowp_type="struct __half", exec_type="class CUDAExecutor", hidden_layers=hidden_layer_sizes)
-    scaling_data_cuda_half = load_scaling_data(scaling_directory, use_wmma=0, lowp_type="struct __half", exec_type="class CUDAExecutor", hidden_layers=hidden_layer_sizes)
-    scaling_data_cpu_float = load_scaling_data(scaling_directory, use_wmma=0, lowp_type="float", exec_type="class CPUExecutor", hidden_layers=hidden_layer_sizes)
+    scaling_data_cuda_float = load_scaling_data(scaling_directory, use_wmma = 0, lowp_type = "float", exec_type = "class CUDAExecutor", hidden_layers = hidden_layer_sizes)
+    scaling_data_cuda_wmma_half = load_scaling_data(scaling_directory, use_wmma = 1, lowp_type = "struct __half", exec_type = "class CUDAExecutor", hidden_layers = hidden_layer_sizes)
+    scaling_data_cuda_half = load_scaling_data(scaling_directory, use_wmma = 0, lowp_type = "struct __half", exec_type = "class CUDAExecutor", hidden_layers = hidden_layer_sizes)
+    scaling_data_cpu_float = load_scaling_data(scaling_directory, use_wmma = 0, lowp_type = "float", exec_type = "class CPUExecutor", hidden_layers = hidden_layer_sizes)
     all_results_total = [scaling_data_cuda_float, scaling_data_cuda_wmma_half, scaling_data_cuda_half, scaling_data_cpu_float]
     plot_scaling_data(all_results_total)
 
-    # Power results
+    # power results
     power_directory = "logs\\power"
     power_hidden_layers = [32, 128, 512, 1024, 2048]
-    power_data_cuda_float = load_all_power_data(power_directory, use_wmma=0, lowp_type="float", exec_type="class CUDAExecutor", hidden_layers=power_hidden_layers)
-    power_data_cuda_half = load_all_power_data(power_directory, use_wmma=0, lowp_type="struct __half", exec_type="class CUDAExecutor", hidden_layers=power_hidden_layers)
-    power_data_cuda_wmma_half = load_all_power_data(power_directory, use_wmma=1, lowp_type="struct __half", exec_type="class CUDAExecutor", hidden_layers=power_hidden_layers)
-    power_data_cpu_float = load_all_power_data(power_directory, use_wmma=0, lowp_type="float", exec_type="class CPUExecutor", hidden_layers=power_hidden_layers)
+    power_data_cuda_float = load_all_power_data(power_directory, use_wmma = 0, lowp_type = "float", exec_type = "class CUDAExecutor", hidden_layers = power_hidden_layers)
+    power_data_cuda_half = load_all_power_data(power_directory, use_wmma = 0, lowp_type = "struct __half", exec_type = "class CUDAExecutor", hidden_layers = power_hidden_layers)
+    power_data_cuda_wmma_half = load_all_power_data(power_directory, use_wmma = 1, lowp_type = "struct __half", exec_type = "class CUDAExecutor", hidden_layers = power_hidden_layers)
+    power_data_cpu_float = load_all_power_data(power_directory, use_wmma = 0, lowp_type = "float", exec_type = "class CPUExecutor", hidden_layers = power_hidden_layers)
     all_power_results = [power_data_cpu_float, power_data_cuda_float, power_data_cuda_half, power_data_cuda_wmma_half]
     plot_power_data(all_power_results)

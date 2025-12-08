@@ -9,8 +9,6 @@
 #define WMMA_K 16
 
 int main() {
-	//test();
-
 	const int TILES_M = 64;
 	const int TILES_N = 64;
 	const int TILES_K = 64;
