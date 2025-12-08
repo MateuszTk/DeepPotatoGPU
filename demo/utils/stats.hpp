@@ -142,6 +142,7 @@ private:
 	}
 
 	float readRAPL() {
+		#ifndef _WIN32 
 		std::ifstream energyFile(linuxPath);
 		if (!energyFile.is_open()) {
 			throw std::runtime_error("Failed to open RAPL energy file");
@@ -151,27 +152,13 @@ private:
 		energyFile.close();
 		float energyWh = static_cast<float>(energyMicroJoules) / (3600.0f * 1000000.0f);
 		return energyWh;
+		#else
+		return 0;
+		#endif
 	}
 
-public:
-	CPUStats() {
-		resetEnergyConsumption();
-		timer.start();
-	}
-
-	~CPUStats() override {
-		if (file.is_open()) {
-			file.close();
-		}
-	}
-
-	void setMeasurementFile(const std::string& path) {
-		windowsPath = path;
-	}
-
-	float getPowerUsage() override {
-		#ifdef _WIN32
-		if (!file.is_open()){
+	float readCSV() {
+		if (!file.is_open()) {
 			file.open(windowsPath);
 			if (!file.is_open()) {
 				throw std::runtime_error("Failed to open power log file");
@@ -217,11 +204,28 @@ public:
 		if (lastLine.empty()) {
 			throw std::runtime_error("Power log file is empty");
 		}
-		
+
 		return readColumn(lastLine);
-		#else
+	}
+
+public:
+	CPUStats() {
+		resetEnergyConsumption();
+		timer.start();
+	}
+
+	~CPUStats() override {
+		if (file.is_open()) {
+			file.close();
+		}
+	}
+
+	void setMeasurementFile(const std::string& path) {
+		windowsPath = path;
+	}
+
+	float getPowerUsage() override {
 		return power;
-		#endif
 	}
 
 	void resetEnergyConsumption() override {
@@ -234,7 +238,8 @@ public:
 	void tick() override {
 		#ifdef _WIN32
 		float timeElapsed = timer.stop(false);
-		float currPower = getPowerUsage();
+		float currPower = readCSV();
+		power = currPower;
 		energy += currPower * (timeElapsed / 3600.0f);
 		timer.start();
 		#else
